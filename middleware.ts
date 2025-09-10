@@ -25,33 +25,45 @@ export async function middleware(request: NextRequest) {
 
   // If it's a protected route, check authentication
   if (isProtectedRoute) {
-    const session = await getSessionFromRequest(request);
+    try {
+      const session = await getSessionFromRequest(request);
 
-    // No session or expired session
-    if (!session) {
+      // No session or expired session
+      if (!session) {
+        const url = new URL('/login', request.url);
+        url.searchParams.set('callbackUrl', pathname);
+        return NextResponse.redirect(url);
+      }
+
+      // Check if session is expired
+      const now = Math.floor(Date.now() / 1000);
+      if (session.expiresAt <= now) {
+        const url = new URL('/login', request.url);
+        url.searchParams.set('callbackUrl', pathname);
+        url.searchParams.set('error', 'session-expired');
+        return NextResponse.redirect(url);
+      }
+
+      // Session is valid, allow access
+      return NextResponse.next();
+    } catch (error) {
+      // If session validation fails, redirect to login
       const url = new URL('/login', request.url);
       url.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(url);
     }
-
-    // Check if session is expired
-    const now = Math.floor(Date.now() / 1000);
-    if (session.expiresAt <= now) {
-      const url = new URL('/login', request.url);
-      url.searchParams.set('callbackUrl', pathname);
-      url.searchParams.set('error', 'session-expired');
-      return NextResponse.redirect(url);
-    }
-
-    // Session is valid, allow access
-    return NextResponse.next();
   }
 
   // If user is authenticated and trying to access login page, redirect to dashboard
   if (pathname === '/login') {
-    const session = await getSessionFromRequest(request);
-    if (session && session.expiresAt > Math.floor(Date.now() / 1000)) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+    try {
+      const session = await getSessionFromRequest(request);
+      if (session && session.expiresAt > Math.floor(Date.now() / 1000)) {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
+    } catch (error) {
+      // If session validation fails, allow access to login page
+      return NextResponse.next();
     }
   }
 
