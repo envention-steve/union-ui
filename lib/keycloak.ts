@@ -136,17 +136,22 @@ export class KeycloakClient {
       refresh_token: refreshToken,
     });
 
-    const response = await fetch(logoutUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: body.toString(),
-    });
+    try {
+      const response = await fetch(logoutUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body.toString(),
+      });
 
-    if (!response.ok) {
-      // Log the error but don't throw - logout should proceed even if Keycloak call fails
-      console.warn(`Keycloak logout failed: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        // Log the error but don't throw - logout should proceed even if Keycloak call fails
+        console.warn(`Keycloak logout failed: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      // Log network errors but don't throw - logout should proceed even if network fails
+      console.warn(`Keycloak logout network error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
