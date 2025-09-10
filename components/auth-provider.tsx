@@ -21,21 +21,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Set up automatic session refresh when expiring soon
   useEffect(() => {
-    if (isAuthenticated && isExpiringSoon && expiresAt) {
+    if (isAuthenticated && expiresAt) {
       if (refreshIntervalRef.current) {
         clearTimeout(refreshIntervalRef.current);
       }
 
-      // Refresh 2 minutes before expiration
-      const timeUntilRefresh = (expiresAt - Math.floor(Date.now() / 1000) - 120) * 1000;
+      const now = Math.floor(Date.now() / 1000);
+      const timeUntilExpiry = expiresAt - now;
       
-      if (timeUntilRefresh > 0) {
+      // If token expires in less than 10 minutes, refresh now
+      if (timeUntilExpiry <= 600) {
+        refreshSession().catch(() => {
+          router.push('/login?error=session-expired');
+        });
+      }
+      // Otherwise, schedule refresh for 5 minutes before expiration
+      else if (timeUntilExpiry > 600) {
+        const timeUntilRefresh = (timeUntilExpiry - 300) * 1000; // 5 minutes before
+        
         refreshIntervalRef.current = setTimeout(async () => {
           try {
             await refreshSession();
           } catch (error) {
-            console.error('Auto-refresh failed:', error);
-            // Redirect to login if refresh fails
             router.push('/login?error=session-expired');
           }
         }, timeUntilRefresh);
@@ -47,7 +54,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         clearTimeout(refreshIntervalRef.current);
       }
     };
-  }, [isAuthenticated, isExpiringSoon, expiresAt, refreshSession, router]);
+  }, [isAuthenticated, expiresAt, refreshSession, router]);
 
   // Set up periodic session validation (every 5 minutes)
   useEffect(() => {

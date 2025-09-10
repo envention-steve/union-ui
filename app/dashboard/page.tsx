@@ -10,7 +10,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-union-900">
-          Welcome back, {user?.full_name || 'User'}!
+          Welcome back, {user?.name || 'User'}!
         </h1>
         <p className="text-muted-foreground">
           Here's an overview of your union benefits platform.

@@ -46,9 +46,9 @@ export function LoginForm() {
     try {
       await login(data);
       
-      // Get callback URL from search params or default to dashboard
+      // Get callback URL from search params or default to members page
       const urlParams = new URLSearchParams(window.location.search);
-      const callbackUrl = urlParams.get('callbackUrl') || '/dashboard';
+      const callbackUrl = urlParams.get('callbackUrl') || '/dashboard/members';
       router.push(callbackUrl);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Login failed');

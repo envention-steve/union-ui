@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { LoginCredentials } from '@/types';
 import { authApiClient } from '@/lib/api-client';
+import { authTokenManager } from '@/lib/auth-token-manager';
 
 interface SessionUser {
   id: string;
@@ -46,6 +47,17 @@ export const useAuthStore = create<AuthState>()(
           const response = await authApiClient.auth.login(credentials);
           
           if (response.success) {
+            // Update token manager by fetching token
+            try {
+              const tokenResp = await fetch('/api/auth/token', { credentials: 'include' });
+              if (tokenResp.ok) {
+                const data = await tokenResp.json();
+                authTokenManager.setToken(data.accessToken);
+              }
+            } catch (e) {
+              console.warn('Unable to set token after login');
+            }
+
             set({
               user: response.user,
               isAuthenticated: true,
@@ -79,6 +91,9 @@ export const useAuthStore = create<AuthState>()(
           console.warn('Logout API call failed:', error);
         }
         
+        // Clear token manager
+        authTokenManager.clearToken();
+
         set({
           user: null,
           isAuthenticated: false,
@@ -91,12 +106,27 @@ export const useAuthStore = create<AuthState>()(
 
       refreshSession: async () => {
         try {
+          set({ isLoading: true });
           const response = await authApiClient.auth.refreshToken();
           
           if (response.success) {
+            // Update token manager by fetching token
+            try {
+              const tokenResp = await fetch('/api/auth/token', { credentials: 'include' });
+              if (tokenResp.ok) {
+                const data = await tokenResp.json();
+                authTokenManager.setToken(data.accessToken);
+              }
+            } catch (e) {
+              console.warn('Unable to set token after refresh');
+            }
+            
             set({
               user: response.user,
               isAuthenticated: true,
+              isLoading: false,
+              expiresAt: response.expiresAt,
+              isExpiringSoon: response.isExpiringSoon,
               error: null,
             });
           } else {
@@ -104,7 +134,8 @@ export const useAuthStore = create<AuthState>()(
           }
         } catch (error) {
           // Refresh failed, logout user
-          get().logout();
+          set({ isLoading: false });
+          await get().logout();
           throw error;
         }
       },
@@ -128,6 +159,17 @@ export const useAuthStore = create<AuthState>()(
           const response = await authApiClient.auth.me();
           
           if (response.success) {
+            // Update token manager by fetching token
+            try {
+              const tokenResp = await fetch('/api/auth/token', { credentials: 'include' });
+              if (tokenResp.ok) {
+                const data = await tokenResp.json();
+                authTokenManager.setToken(data.accessToken);
+              }
+            } catch (e) {
+              console.warn('Unable to set token during auth check');
+            }
+
             set({
               user: response.user,
               isAuthenticated: true,
@@ -150,6 +192,9 @@ export const useAuthStore = create<AuthState>()(
           }
         } catch (error) {
           // Session is invalid, clear auth state
+          // Clear token manager
+          authTokenManager.clearToken();
+
           set({
             user: null,
             isAuthenticated: false,

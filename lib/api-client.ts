@@ -1,5 +1,33 @@
+interface AuthEndpoints {
+  login: (credentials: { email: string; password: string }) => Promise<{ success: boolean; user: any; message: string }>;
+  logout: () => Promise<{ success: boolean; message: string }>;
+  refreshToken: () => Promise<{ success: boolean; user: any; expiresAt: number; isExpiringSoon: boolean; message: string }>;
+  me: () => Promise<{ success: boolean; user: any; expiresAt: number; isExpiringSoon: boolean }>;
+}
+
+interface BusinessEndpoints {
+  list: (params?: { page?: number; limit?: number; search?: string; category?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
+  get: (id: string) => Promise<any>;
+  create: (data: any) => Promise<any>;
+  update: (id: string, data: any) => Promise<any>;
+  delete: (id: string) => Promise<{ message: string }>;
+}
+
+interface DashboardEndpoints {
+  getStats: () => Promise<{
+    totalMembers: number;
+    activeBenefits: number;
+    pendingClaims: number;
+    totalPremiums: number;
+    membersTrend: number;
+    benefitsTrend: number;
+    claimsTrend: number;
+    premiumsTrend: number;
+  }>;
+}
+
 class ApiClient {
-  private baseURL: string;
+  protected baseURL: string;
   private token?: string;
 
   constructor(baseURL: string) {
@@ -14,9 +42,12 @@ class ApiClient {
     this.token = undefined;
   }
 
-  private async request<T>(
+  protected lastResponse?: Response;
+
+  protected async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retryCount = 0
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     const headers = {
@@ -30,6 +61,27 @@ class ApiClient {
       headers,
     });
 
+    // Store the response for header access
+    this.lastResponse = response;
+
+    // If we get a 401 and this is not already a refresh request, try to refresh token
+    if (response.status === 401 && !endpoint.includes('/auth/') && retryCount === 0) {
+      try {
+        // Attempt token refresh
+        const refreshResponse = await fetch(`${this.baseURL}/api/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        
+        if (refreshResponse.ok) {
+          // Retry the original request with the new token
+          return this.request<T>(endpoint, options, retryCount + 1);
+        }
+      } catch (error) {
+        // Token refresh failed, let the original 401 error propagate
+      }
+    }
+
     if (!response.ok) {
       const error = await response.text();
       throw new Error(`API Error: ${response.status} ${response.statusText} - ${error}`);
@@ -41,6 +93,10 @@ class ApiClient {
     }
     
     return response.text() as T;
+  }
+
+  getLastResponseHeaders(): HeadersInit | undefined {
+    return this.lastResponse?.headers;
   }
 
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
@@ -83,98 +139,292 @@ class ApiClient {
 
 }
 
-// Create separate API clients for different purposes
+// Create properly typed API client classes
+
+class AuthApiClient extends ApiClient {
+  auth: AuthEndpoints;
+
+  constructor(baseURL: string) {
+    super(baseURL);
+    this.auth = {
+      login: (credentials: { email: string; password: string }) =>
+        this.post<{ success: boolean; user: any; message: string }>('/api/auth/login', credentials),
+      
+      logout: () =>
+        this.post<{ success: boolean; message: string }>('/api/auth/logout'),
+      
+      refreshToken: () =>
+        this.post<{ success: boolean; user: any; expiresAt: number; isExpiringSoon: boolean; message: string }>('/api/auth/refresh'),
+      
+      me: () =>
+        this.get<{ success: boolean; user: any; expiresAt: number; isExpiringSoon: boolean }>('/api/auth/me'),
+    };
+  }
+}
+
+class AuthenticatedBackendApiClient extends ApiClient {
+  benefits!: BusinessEndpoints;
+  members!: BusinessEndpoints;
+  plans!: BusinessEndpoints;
+  dashboard!: DashboardEndpoints;
+
+  constructor(baseURL: string) {
+    super(baseURL);
+    
+    // Initialize endpoints immediately
+    this.initializeEndpoints();
+    
+    // Load auth token manager asynchronously
+    import('@/lib/auth-token-manager').then(({ authTokenManager }) => {
+      this.tokenManager = authTokenManager;
+    });
+  }
+  
+  private tokenManager?: any;
+
+  /**
+   * Get token with fallback if token manager isn't loaded yet
+   */
+  private async getAuthToken(): Promise<string | null> {
+    if (this.tokenManager) {
+      // Try cached token first
+      let token = this.tokenManager.getCachedToken();
+      if (!token) {
+        // Try to get fresh token
+        try {
+          token = await this.tokenManager.getCurrentToken();
+        } catch (error) {
+          console.warn('Failed to get token from token manager:', error);
+        }
+      }
+      return token;
+    } else {
+      // Fallback: try to get token directly
+      try {
+        const response = await fetch('/api/auth/token', {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data.accessToken || null;
+        }
+      } catch (error) {
+        console.warn('Failed to get token from fallback method:', error);
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Override request method to automatically include auth tokens
+   */
+  protected async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    retryCount = 0
+  ): Promise<T> {
+    // Get auth token
+    const token = await this.getAuthToken();
+
+    // Build headers safely (handle HeadersInit variants)
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/json');
+    if (options.headers) {
+      const incoming = new Headers(options.headers as any);
+      incoming.forEach((value, key) => headers.set(key, value));
+    }
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const url = `${this.baseURL}${endpoint}`;
+    const response = await fetch(url, { ...options, headers });
+
+    // Store the response for header access
+    this.lastResponse = response;
+
+    // Handle 401 - token might be expired, try refresh
+    if (response.status === 401 && retryCount === 0 && this.tokenManager) {
+      try {
+        console.log('Backend request got 401, attempting token refresh...');
+        const newToken = await this.tokenManager.refreshTokenIfNeeded();
+        if (newToken) {
+          // Retry request with new token
+          return this.request<T>(endpoint, options, retryCount + 1);
+        }
+      } catch (error) {
+        console.warn('Token refresh failed for backend request:', error);
+      }
+    }
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`API Error: ${response.status} ${response.statusText} - ${error}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+    
+    return response.text() as T;
+  }
+
+  // Override the get method to use our authenticated request
+  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
+    const url = new URL(endpoint, this.baseURL);
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          url.searchParams.append(key, String(value));
+        }
+      });
+    }
+    return this.request<T>(url.pathname + url.search, { method: 'GET' });
+  }
+
+  // Override other methods to use our authenticated request
+  async post<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async put<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async delete<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, { method: 'DELETE' });
+  }
+
+  async patch<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  // Initialize endpoints
+  initializeEndpoints() {
+    this.benefits = {
+      list: (params?: { page?: number; limit?: number; search?: string; category?: string }) =>
+        this.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/benefits', params),
+      
+      get: (id: string) =>
+        this.get<any>(`/api/v1/benefits/${id}`),
+      
+      create: (data: any) =>
+        this.post<any>('/api/v1/benefits', data),
+      
+      update: (id: string, data: any) =>
+        this.put<any>(`/api/v1/benefits/${id}`, data),
+      
+      delete: (id: string) =>
+        this.delete<{ message: string }>(`/api/v1/benefits/${id}`),
+    };
+
+    this.members = {
+      list: async (params?: { page?: number; limit?: number; search?: string }) => {
+        const queryParams: Record<string, any> = {};
+        
+        // Handle pagination - FastAPI uses offset/limit instead of page
+        if (params?.page !== undefined && params?.limit !== undefined) {
+          queryParams.offset = (params.page - 1) * params.limit;
+          queryParams.limit = params.limit;
+        } else {
+          queryParams.limit = 25; // Default limit
+        }
+        
+        // Add other params
+        if (params?.search) {
+          queryParams.search = params.search;
+        }
+        
+        const response = await this.get<any[]>('/api/v1/members', queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        
+        // Extract pagination info from headers
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+        
+        return {
+          items: response,
+          total,
+          page: params?.page || 1,
+          limit: params?.limit || 25
+        };
+      },
+      
+      get: (id: string) =>
+        this.get<any>(`/api/v1/members/${id}`),
+      
+      create: (data: any) =>
+        this.post<any>('/api/v1/members', data),
+      
+      update: (id: string, data: any) =>
+        this.put<any>(`/api/v1/members/${id}`, data),
+      
+      delete: (id: string) =>
+        this.delete<any>(`/api/v1/members/${id}`),
+    };
+
+    this.plans = {
+      list: (params?: { page?: number; limit?: number; search?: string }) =>
+        this.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/plans', params),
+      
+      get: (id: string) =>
+        this.get<any>(`/api/v1/plans/${id}`),
+      
+      create: (data: any) =>
+        this.post<any>('/api/v1/plans', data),
+      
+      update: (id: string, data: any) =>
+        this.put<any>(`/api/v1/plans/${id}`, data),
+      
+      delete: (id: string) =>
+        this.delete<{ message: string }>(`/api/v1/plans/${id}`),
+    };
+
+    this.dashboard = {
+      getStats: () =>
+        this.get<{
+          totalMembers: number;
+          activeBenefits: number;
+          pendingClaims: number;
+          totalPremiums: number;
+          membersTrend: number;
+          benefitsTrend: number;
+          claimsTrend: number;
+          premiumsTrend: number;
+        }>('/api/v1/dashboard/stats'),
+    };
+  }
+  
+  async initialize() {
+    // Wait for token manager to be available
+    if (!this.tokenManager) {
+      const { authTokenManager } = await import('@/lib/auth-token-manager');
+      this.tokenManager = authTokenManager;
+    }
+    
+    this.initializeEndpoints();
+  }
+}
 
 // Auth API Client - for authentication (points to current Next.js app)
-export const authApiClient = new ApiClient(
+export const authApiClient = new AuthApiClient(
   process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 );
 
-// Add auth endpoints to authApiClient
-authApiClient.auth = {
-  login: (credentials: { email: string; password: string }) =>
-    authApiClient.post<{ success: boolean; user: any; message: string }>('/api/auth/login', credentials),
-  
-  logout: () =>
-    authApiClient.post<{ success: boolean; message: string }>('/api/auth/logout'),
-  
-  refreshToken: () =>
-    authApiClient.post<{ success: boolean; user: any; message: string }>('/api/auth/refresh'),
-  
-  me: () =>
-    authApiClient.get<{ success: boolean; user: any; expiresAt: number; isExpiringSoon: boolean }>('/api/auth/me'),
-};
-
-// Backend API Client - for business logic (points to your backend server)
-export const backendApiClient = new ApiClient(
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// Backend API Client - for business logic (points to your FastAPI backend server)
+export const backendApiClient = new AuthenticatedBackendApiClient(
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8035'
 );
-
-// Add business endpoints to backendApiClient
-backendApiClient.benefits = {
-  list: (params?: { page?: number; limit?: number; search?: string; category?: string }) =>
-    backendApiClient.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/benefits', params),
-  
-  get: (id: string) =>
-    backendApiClient.get<any>(`/api/v1/benefits/${id}`),
-  
-  create: (data: any) =>
-    backendApiClient.post<any>('/api/v1/benefits', data),
-  
-  update: (id: string, data: any) =>
-    backendApiClient.put<any>(`/api/v1/benefits/${id}`, data),
-  
-  delete: (id: string) =>
-    backendApiClient.delete<{ message: string }>(`/api/v1/benefits/${id}`),
-};
-
-backendApiClient.members = {
-  list: (params?: { page?: number; limit?: number; search?: string }) =>
-    backendApiClient.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/members', params),
-  
-  get: (id: string) =>
-    backendApiClient.get<any>(`/api/v1/members/${id}`),
-  
-  create: (data: any) =>
-    backendApiClient.post<any>('/api/v1/members', data),
-  
-  update: (id: string, data: any) =>
-    backendApiClient.put<any>(`/api/v1/members/${id}`, data),
-  
-  delete: (id: string) =>
-    backendApiClient.delete<{ message: string }>(`/api/v1/members/${id}`),
-};
-
-backendApiClient.plans = {
-  list: (params?: { page?: number; limit?: number; search?: string }) =>
-    backendApiClient.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/plans', params),
-  
-  get: (id: string) =>
-    backendApiClient.get<any>(`/api/v1/plans/${id}`),
-  
-  create: (data: any) =>
-    backendApiClient.post<any>('/api/v1/plans', data),
-  
-  update: (id: string, data: any) =>
-    backendApiClient.put<any>(`/api/v1/plans/${id}`, data),
-  
-  delete: (id: string) =>
-    backendApiClient.delete<{ message: string }>(`/api/v1/plans/${id}`),
-};
-
-backendApiClient.dashboard = {
-  getStats: () =>
-    backendApiClient.get<{
-      totalMembers: number;
-      activeBenefits: number;
-      pendingClaims: number;
-      totalPremiums: number;
-      membersTrend: number;
-      benefitsTrend: number;
-      claimsTrend: number;
-      premiumsTrend: number;
-    }>('/api/v1/dashboard/stats'),
-};
 
 // For backward compatibility, keep the main apiClient pointing to auth
 export const apiClient = authApiClient;

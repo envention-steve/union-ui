@@ -63,8 +63,43 @@ export interface BenefitFormData {
   eligibilityRules?: string;
 }
 
-// Member types
+// Member types - Updated to match FastAPI backend structure
 export interface Member {
+  id: number;
+  first_name: string;
+  last_name: string;
+  middle_name?: string;
+  suffix?: string;
+  phone?: string;
+  email?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  birth_date?: string;
+  deceased: boolean;
+  deceased_date?: string;
+  is_forced_distribution: boolean;
+  force_distribution_class_id?: number;
+  unique_id: string; // This is like member_number
+  disabled_waiver: boolean;
+  care_of?: string;
+  include_cms: boolean;
+  created_at?: string;
+  updated_at?: string;
+  // Additional computed fields for the UI
+  full_name?: string;
+  member_id?: string; // For display purposes
+  employer?: string; // From relationships
+  plan?: string; // From relationships 
+  status?: 'Active' | 'Pending' | 'Inactive'; // Computed status
+}
+
+export type EmploymentStatus = 
+  | 'active'
+  | 'on_leave'
+  | 'terminated'
+  | 'retired';
+
+// Keep legacy Member interface for backward compatibility if needed
+export interface LegacyMember {
   id: string;
   user_id: string;
   member_number: string;
@@ -80,12 +115,6 @@ export interface Member {
   user?: User;
   enrollments?: BenefitEnrollment[];
 }
-
-export type EmploymentStatus = 
-  | 'active'
-  | 'on_leave'
-  | 'terminated'
-  | 'retired';
 
 export interface Address {
   street: string;

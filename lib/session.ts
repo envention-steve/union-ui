@@ -1,4 +1,4 @@
-import { SignJWT, jwtVerify } from 'jose';
+import { SignJWT, jwtVerify, decodeJwt } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { KeycloakUser } from './keycloak';
@@ -24,7 +24,7 @@ export interface SessionData {
  * Create a signed JWT session token
  */
 export async function createSessionToken(data: SessionData): Promise<string> {
-  return await new SignJWT(data)
+  return await new SignJWT(data as any)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setIssuer(issuer)
@@ -34,7 +34,7 @@ export async function createSessionToken(data: SessionData): Promise<string> {
 }
 
 /**
- * Verify and decode session token
+ * Verify and decode session token (strict - enforces exp)
  */
 export async function verifySessionToken(token: string): Promise<SessionData> {
   try {
@@ -43,7 +43,7 @@ export async function verifySessionToken(token: string): Promise<SessionData> {
       audience,
     });
 
-    return payload as SessionData;
+    return payload as unknown as SessionData;
   } catch (error) {
     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -61,7 +61,7 @@ export function createSessionCookie(sessionToken: string): string {
 }
 
 /**
- * Get session from cookies (server-side)
+ * Get session from cookies (server-side) - strict (enforces exp)
  */
 export async function getServerSession(): Promise<SessionData | null> {
   try {
@@ -80,7 +80,7 @@ export async function getServerSession(): Promise<SessionData | null> {
 }
 
 /**
- * Get session from request (middleware)
+ * Get session from request (middleware) - strict (enforces exp)
  */
 export async function getSessionFromRequest(request: NextRequest): Promise<SessionData | null> {
   try {
@@ -131,4 +131,38 @@ export function isSessionExpiringSoon(session: SessionData): boolean {
   const now = Math.floor(Date.now() / 1000);
   const bufferTime = 5 * 60; // 5 minutes
   return session.expiresAt - now < bufferTime;
+}
+
+/**
+ * Get session even if expired (for refresh flow)
+ * Verifies signature while bypassing exp check by verifying with currentDate before expiry.
+ */
+export async function getServerSessionAllowExpired(): Promise<SessionData | null> {
+  try {
+    const cookieStore = await cookies();
+    const cookieName = process.env.SESSION_COOKIE_NAME || 'union-session';
+    const sessionCookie = cookieStore.get(cookieName);
+
+    if (!sessionCookie?.value) {
+      return null;
+    }
+
+    const raw = sessionCookie.value;
+    // Decode without verifying to get exp
+    const decoded: any = decodeJwt(raw);
+    const exp = decoded?.exp;
+    const backdated = typeof exp === 'number' ? new Date((exp - 1) * 1000) : new Date();
+
+    // Verify signature using backdated currentDate
+    const { payload } = await jwtVerify(raw, secret, {
+      issuer,
+      audience,
+      currentDate: backdated,
+    });
+
+    return payload as unknown as SessionData;
+  } catch (error) {
+    console.warn('Failed to get expired session:', error);
+    return null;
+  }
 }

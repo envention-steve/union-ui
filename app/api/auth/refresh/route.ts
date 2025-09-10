@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession, createSessionToken, createSessionCookie, keycloakUserToSessionUser } from '@/lib/session';
+import { getServerSessionAllowExpired, createSessionToken, createSessionCookie, keycloakUserToSessionUser } from '@/lib/session';
 import { keycloakClient } from '@/lib/keycloak';
 
 export async function POST(request: NextRequest) {
+  console.log('[REFRESH_ENDPOINT] Token refresh request received');
   try {
-    // Get current session
-    const session = await getServerSession();
+    // Get current session (allow expired for refresh)
+    const session = await getServerSessionAllowExpired();
+    console.log(`[REFRESH_ENDPOINT] Session found: ${session ? 'YES' : 'NO'}`);
+    console.log(`[REFRESH_ENDPOINT] Refresh token available: ${session?.refreshToken ? 'YES' : 'NO'}`);
 
     if (!session?.refreshToken) {
+      console.log('[REFRESH_ENDPOINT] No refresh token available');
       return NextResponse.json(
         { error: 'No refresh token available' },
         { status: 401 }
@@ -15,7 +19,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Refresh token with Keycloak
+    console.log('[REFRESH_ENDPOINT] Calling Keycloak refresh token');
     const tokenResponse = await keycloakClient.refreshToken(session.refreshToken);
+    console.log('[REFRESH_ENDPOINT] Keycloak refresh successful');
     
     // Validate the new access token and get updated user info
     const keycloakUser = await keycloakClient.validateToken(tokenResponse.access_token);
@@ -42,11 +48,14 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       success: true,
       user: sessionUser,
+      expiresAt,
+      isExpiringSoon: (expiresAt - now) < 600, // Less than 10 minutes
       message: 'Token refreshed successfully',
     });
 
     // Set new session cookie
     response.headers.set('Set-Cookie', createSessionCookie(newSessionToken));
+    console.log('[REFRESH_ENDPOINT] Token refresh completed successfully');
 
     return response;
 

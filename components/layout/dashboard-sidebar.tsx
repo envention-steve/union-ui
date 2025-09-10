@@ -7,43 +7,42 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Users,
+  Building2,
   Shield,
+  Package,
   FileText,
-  BarChart3,
   Settings,
-  Heart,
-  Home,
 } from 'lucide-react';
 
 const sidebarItems = [
-  {
-    title: 'Dashboard',
-    href: '/dashboard',
-    icon: Home,
-  },
-  {
-    title: 'Benefits',
-    href: '/dashboard/benefits',
-    icon: Heart,
-  },
   {
     title: 'Members',
     href: '/dashboard/members',
     icon: Users,
   },
   {
-    title: 'Plans',
-    href: '/dashboard/plans',
+    title: 'Employers',
+    href: '/dashboard/employers',
+    icon: Building2,
+  },
+  {
+    title: 'Insurance Plans',
+    href: '/dashboard/insurance-plans',
     icon: Shield,
   },
   {
-    title: 'Analytics',
-    href: '/dashboard/analytics',
-    icon: BarChart3,
+    title: 'Batches',
+    href: '/dashboard/batches',
+    icon: Package,
   },
   {
-    title: 'Settings',
-    href: '/dashboard/settings',
+    title: 'Reports',
+    href: '/dashboard/reports',
+    icon: FileText,
+  },
+  {
+    title: 'Admin Settings',
+    href: '/dashboard/admin-settings',
     icon: Settings,
   },
 ];

@@ -118,7 +118,7 @@ export class KeycloakClient {
         audience: ['account', this.config.clientId],
       });
 
-      return payload as KeycloakUser;
+      return payload as unknown as KeycloakUser;
     } catch (error) {
       throw new Error(`Token validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
