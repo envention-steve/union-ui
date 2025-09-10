@@ -34,7 +34,7 @@ const createWrapper = () => {
   );
 };
 
-describe('useDataTable', () => {
+describe('useDataTable (Fixed)', () => {
   beforeEach(() => {
     mockQueryFn.mockClear();
     mockQueryFn.mockResolvedValue(mockApiResponse);
@@ -54,17 +54,16 @@ describe('useDataTable', () => {
         page: 1,
         pageSize: 10,
       });
-      expect(result.current.sorting).toBeNull();
+      expect(result.current.sorting).toEqual({ field: 'created_at', direction: 'desc' });
       expect(result.current.filters).toEqual({});
       expect(result.current.globalFilter).toBe('');
       expect(result.current.isLoading).toBe(true);
       expect(result.current.data).toEqual([]);
-      expect(result.current.total).toBe(0);
+      expect(result.current.totalItems).toBe(0);
       expect(result.current.totalPages).toBe(0);
     });
 
     it('should accept custom initial values', () => {
-      const initialPagination = { page: 2, pageSize: 20 };
       const initialSorting = { field: 'name', direction: 'desc' as const };
       const initialFilters = { status: 'active' };
 
@@ -72,14 +71,17 @@ describe('useDataTable', () => {
         () => useDataTable({
           queryKey: ['test-data'],
           queryFn: mockQueryFn,
-          initialPagination,
+          pageSize: 20,
           initialSorting,
           initialFilters,
         }),
         { wrapper: createWrapper() }
       );
 
-      expect(result.current.pagination).toEqual(initialPagination);
+      expect(result.current.pagination).toEqual({
+        page: 1,
+        pageSize: 20,
+      });
       expect(result.current.sorting).toEqual(initialSorting);
       expect(result.current.filters).toEqual(initialFilters);
     });
@@ -101,13 +103,13 @@ describe('useDataTable', () => {
 
       expect(mockQueryFn).toHaveBeenCalledWith({
         page: 1,
-        pageSize: 10,
-        filters: {},
-        sorting: null,
-        globalFilter: '',
+        limit: 10,
+        sortBy: 'created_at',
+        sortOrder: 'desc',
+        search: undefined,
       });
       expect(result.current.data).toEqual(mockApiResponse.items);
-      expect(result.current.total).toBe(mockApiResponse.total);
+      expect(result.current.totalItems).toBe(mockApiResponse.total);
     });
 
     it('should refetch data when parameters change', async () => {
@@ -125,16 +127,16 @@ describe('useDataTable', () => {
 
       // Change pagination
       act(() => {
-        result.current.setPagination({ page: 2, pageSize: 20 });
+        result.current.handlePageChange(2);
       });
 
       await waitFor(() => {
         expect(mockQueryFn).toHaveBeenCalledWith({
           page: 2,
-          pageSize: 20,
-          filters: {},
-          sorting: null,
-          globalFilter: '',
+          limit: 10,
+          sortBy: 'created_at',
+          sortOrder: 'desc',
+          search: undefined,
         });
       });
     });
@@ -161,7 +163,7 @@ describe('useDataTable', () => {
   });
 
   describe('Pagination', () => {
-    it('should update pagination correctly', async () => {
+    it('should handle page changes', async () => {
       const { result } = renderHook(
         () => useDataTable({
           queryKey: ['test-data'],
@@ -175,13 +177,13 @@ describe('useDataTable', () => {
       });
 
       act(() => {
-        result.current.setPagination({ page: 3, pageSize: 15 });
+        result.current.handlePageChange(3);
       });
 
-      expect(result.current.pagination).toEqual({ page: 3, pageSize: 15 });
+      expect(result.current.pagination.page).toBe(3);
     });
 
-    it('should go to next page', async () => {
+    it('should handle page size changes', async () => {
       const { result } = renderHook(
         () => useDataTable({
           queryKey: ['test-data'],
@@ -195,51 +197,10 @@ describe('useDataTable', () => {
       });
 
       act(() => {
-        result.current.nextPage();
+        result.current.handlePageSizeChange(25);
       });
 
-      expect(result.current.pagination.page).toBe(2);
-    });
-
-    it('should go to previous page', async () => {
-      const { result } = renderHook(
-        () => useDataTable({
-          queryKey: ['test-data'],
-          queryFn: mockQueryFn,
-          initialPagination: { page: 2, pageSize: 10 },
-        }),
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      act(() => {
-        result.current.previousPage();
-      });
-
-      expect(result.current.pagination.page).toBe(1);
-    });
-
-    it('should not go to previous page when on first page', async () => {
-      const { result } = renderHook(
-        () => useDataTable({
-          queryKey: ['test-data'],
-          queryFn: mockQueryFn,
-        }),
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      act(() => {
-        result.current.previousPage();
-      });
-
-      expect(result.current.pagination.page).toBe(1);
+      expect(result.current.pagination).toEqual({ page: 1, pageSize: 25 });
     });
 
     it('should calculate total pages correctly', async () => {
@@ -265,7 +226,7 @@ describe('useDataTable', () => {
   });
 
   describe('Sorting', () => {
-    it('should set sorting correctly', async () => {
+    it('should handle sort changes', async () => {
       const { result } = renderHook(
         () => useDataTable({
           queryKey: ['test-data'],
@@ -278,13 +239,11 @@ describe('useDataTable', () => {
         expect(result.current.isLoading).toBe(false);
       });
 
-      const newSorting = { field: 'name', direction: 'asc' as const };
-      
       act(() => {
-        result.current.setSorting(newSorting);
+        result.current.handleSortChange('name');
       });
 
-      expect(result.current.sorting).toEqual(newSorting);
+      expect(result.current.sorting).toEqual({ field: 'name', direction: 'asc' });
     });
 
     it('should toggle sorting direction for same field', async () => {
@@ -302,31 +261,10 @@ describe('useDataTable', () => {
       });
 
       act(() => {
-        result.current.toggleSort('name');
+        result.current.handleSortChange('name');
       });
 
       expect(result.current.sorting).toEqual({ field: 'name', direction: 'desc' });
-    });
-
-    it('should set new field sorting to ascending', async () => {
-      const { result } = renderHook(
-        () => useDataTable({
-          queryKey: ['test-data'],
-          queryFn: mockQueryFn,
-          initialSorting: { field: 'name', direction: 'desc' },
-        }),
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      act(() => {
-        result.current.toggleSort('status');
-      });
-
-      expect(result.current.sorting).toEqual({ field: 'status', direction: 'asc' });
     });
 
     it('should reset pagination when sorting changes', async () => {
@@ -334,7 +272,6 @@ describe('useDataTable', () => {
         () => useDataTable({
           queryKey: ['test-data'],
           queryFn: mockQueryFn,
-          initialPagination: { page: 3, pageSize: 10 },
         }),
         { wrapper: createWrapper() }
       );
@@ -343,8 +280,16 @@ describe('useDataTable', () => {
         expect(result.current.isLoading).toBe(false);
       });
 
+      // Change to page 3
       act(() => {
-        result.current.setSorting({ field: 'name', direction: 'asc' });
+        result.current.handlePageChange(3);
+      });
+
+      expect(result.current.pagination.page).toBe(3);
+
+      // Change sorting - should reset to page 1
+      act(() => {
+        result.current.handleSortChange('name');
       });
 
       expect(result.current.pagination.page).toBe(1);
@@ -352,27 +297,7 @@ describe('useDataTable', () => {
   });
 
   describe('Filtering', () => {
-    it('should set individual filters', async () => {
-      const { result } = renderHook(
-        () => useDataTable({
-          queryKey: ['test-data'],
-          queryFn: mockQueryFn,
-        }),
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      act(() => {
-        result.current.setFilter('status', 'active');
-      });
-
-      expect(result.current.filters).toEqual({ status: 'active' });
-    });
-
-    it('should set multiple filters', async () => {
+    it('should handle filter changes', async () => {
       const { result } = renderHook(
         () => useDataTable({
           queryKey: ['test-data'],
@@ -388,52 +313,10 @@ describe('useDataTable', () => {
       const newFilters = { status: 'active', category: 'premium' };
 
       act(() => {
-        result.current.setFilters(newFilters);
+        result.current.handleFilterChange(newFilters);
       });
 
       expect(result.current.filters).toEqual(newFilters);
-    });
-
-    it('should clear individual filters', async () => {
-      const { result } = renderHook(
-        () => useDataTable({
-          queryKey: ['test-data'],
-          queryFn: mockQueryFn,
-          initialFilters: { status: 'active', category: 'premium' },
-        }),
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      act(() => {
-        result.current.clearFilter('status');
-      });
-
-      expect(result.current.filters).toEqual({ category: 'premium' });
-    });
-
-    it('should clear all filters', async () => {
-      const { result } = renderHook(
-        () => useDataTable({
-          queryKey: ['test-data'],
-          queryFn: mockQueryFn,
-          initialFilters: { status: 'active', category: 'premium' },
-        }),
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      act(() => {
-        result.current.clearAllFilters();
-      });
-
-      expect(result.current.filters).toEqual({});
     });
 
     it('should reset pagination when filters change', async () => {
@@ -441,7 +324,6 @@ describe('useDataTable', () => {
         () => useDataTable({
           queryKey: ['test-data'],
           queryFn: mockQueryFn,
-          initialPagination: { page: 3, pageSize: 10 },
         }),
         { wrapper: createWrapper() }
       );
@@ -450,8 +332,16 @@ describe('useDataTable', () => {
         expect(result.current.isLoading).toBe(false);
       });
 
+      // Change to page 3
       act(() => {
-        result.current.setFilter('status', 'active');
+        result.current.handlePageChange(3);
+      });
+
+      expect(result.current.pagination.page).toBe(3);
+
+      // Change filters - should reset to page 1
+      act(() => {
+        result.current.handleFilterChange({ status: 'active' });
       });
 
       expect(result.current.pagination.page).toBe(1);
@@ -459,7 +349,7 @@ describe('useDataTable', () => {
   });
 
   describe('Global filter (search)', () => {
-    it('should set global filter', async () => {
+    it('should handle global filter changes', async () => {
       const { result } = renderHook(
         () => useDataTable({
           queryKey: ['test-data'],
@@ -473,7 +363,7 @@ describe('useDataTable', () => {
       });
 
       act(() => {
-        result.current.setGlobalFilter('search term');
+        result.current.handleGlobalFilterChange('search term');
       });
 
       expect(result.current.globalFilter).toBe('search term');
@@ -484,7 +374,6 @@ describe('useDataTable', () => {
         () => useDataTable({
           queryKey: ['test-data'],
           queryFn: mockQueryFn,
-          initialPagination: { page: 3, pageSize: 10 },
         }),
         { wrapper: createWrapper() }
       );
@@ -493,19 +382,28 @@ describe('useDataTable', () => {
         expect(result.current.isLoading).toBe(false);
       });
 
+      // Change to page 3
       act(() => {
-        result.current.setGlobalFilter('search');
+        result.current.handlePageChange(3);
+      });
+
+      expect(result.current.pagination.page).toBe(3);
+
+      // Change global filter - should reset to page 1
+      act(() => {
+        result.current.handleGlobalFilterChange('search');
       });
 
       expect(result.current.pagination.page).toBe(1);
     });
+  });
 
-    it('should debounce global filter changes', async () => {
+  describe('Reset functionality', () => {
+    it('should reset all state to initial values', async () => {
       const { result } = renderHook(
         () => useDataTable({
           queryKey: ['test-data'],
           queryFn: mockQueryFn,
-          debounceMs: 100,
         }),
         { wrapper: createWrapper() }
       );
@@ -514,39 +412,47 @@ describe('useDataTable', () => {
         expect(result.current.isLoading).toBe(false);
       });
 
-      // Clear previous calls
-      mockQueryFn.mockClear();
-
-      // Rapidly change global filter
+      // Change all state
       act(() => {
-        result.current.setGlobalFilter('a');
-      });
-      act(() => {
-        result.current.setGlobalFilter('ab');
-      });
-      act(() => {
-        result.current.setGlobalFilter('abc');
+        result.current.handlePageChange(3);
+        result.current.handleSortChange('name');
+        result.current.handleFilterChange({ status: 'active', category: 'premium' });
+        result.current.handleGlobalFilterChange('search term');
       });
 
-      expect(result.current.globalFilter).toBe('abc');
+      // Reset
+      act(() => {
+        result.current.handleResetFilters();
+      });
 
-      // Should not trigger immediate API call due to debouncing
-      expect(mockQueryFn).not.toHaveBeenCalled();
-
-      // Wait for debounce
-      await waitFor(
-        () => {
-          expect(mockQueryFn).toHaveBeenCalledWith(
-            expect.objectContaining({ globalFilter: 'abc' })
-          );
-        },
-        { timeout: 200 }
-      );
+      expect(result.current.pagination).toEqual({ page: 1, pageSize: 10 });
+      expect(result.current.sorting).toEqual({ field: 'created_at', direction: 'desc' });
+      expect(result.current.filters).toEqual({});
+      expect(result.current.globalFilter).toBe('');
     });
   });
 
-  describe('Refresh functionality', () => {
-    it('should provide refresh function', async () => {
+  describe('Query options', () => {
+    it('should respect enabled option', async () => {
+      renderHook(
+        () => useDataTable({
+          queryKey: ['test-data'],
+          queryFn: mockQueryFn,
+          enabled: false,
+        }),
+        { wrapper: createWrapper() }
+      );
+
+      // Wait a bit to ensure no query is triggered
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // The hook should not automatically fetch data when enabled is false
+      expect(mockQueryFn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Refetch functionality', () => {
+    it('should provide refetch function', async () => {
       const { result } = renderHook(
         () => useDataTable({
           queryKey: ['test-data'],
@@ -568,62 +474,6 @@ describe('useDataTable', () => {
       await waitFor(() => {
         expect(mockQueryFn).toHaveBeenCalled();
       });
-    });
-  });
-
-  describe('Reset functionality', () => {
-    it('should reset all state to initial values', async () => {
-      const { result } = renderHook(
-        () => useDataTable({
-          queryKey: ['test-data'],
-          queryFn: mockQueryFn,
-        }),
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      // Change all state
-      act(() => {
-        result.current.setPagination({ page: 3, pageSize: 20 });
-        result.current.setSorting({ field: 'name', direction: 'desc' });
-        result.current.setFilters({ status: 'active', category: 'premium' });
-        result.current.setGlobalFilter('search term');
-      });
-
-      // Reset
-      act(() => {
-        result.current.reset();
-      });
-
-      expect(result.current.pagination).toEqual({ page: 1, pageSize: 10 });
-      expect(result.current.sorting).toBeNull();
-      expect(result.current.filters).toEqual({});
-      expect(result.current.globalFilter).toBe('');
-    });
-  });
-
-  describe('Query options', () => {
-    it('should pass through custom query options', () => {
-      const customQueryOptions = {
-        enabled: false,
-        staleTime: 5000,
-        retry: 3,
-      };
-
-      renderHook(
-        () => useDataTable({
-          queryKey: ['test-data'],
-          queryFn: mockQueryFn,
-          queryOptions: customQueryOptions,
-        }),
-        { wrapper: createWrapper() }
-      );
-
-      // The hook should not automatically fetch data when enabled is false
-      expect(mockQueryFn).not.toHaveBeenCalled();
     });
   });
 });

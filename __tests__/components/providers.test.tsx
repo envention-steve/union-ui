@@ -261,6 +261,135 @@ describe('Providers', () => {
     })
   })
 
+  describe('QueryClient Retry Logic', () => {
+    // Mock QueryClient to capture retry function
+    let capturedRetryFunction: any = null;
+    
+    beforeEach(() => {
+      // Reset the captured function
+      capturedRetryFunction = null;
+      
+      // Mock QueryClient constructor to capture the retry function
+      jest.spyOn(require('@tanstack/react-query'), 'QueryClient').mockImplementation((options: any) => {
+        capturedRetryFunction = options?.defaultOptions?.queries?.retry;
+        return {
+          mount: jest.fn(),
+          unmount: jest.fn(),
+          getQueryData: jest.fn(),
+          setQueryData: jest.fn(),
+        } as any;
+      });
+    });
+    
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+    
+    it('should configure retry logic that prevents retry for 401 errors', () => {
+      render(
+        <Providers>
+          <TestChild />
+        </Providers>
+      );
+      
+      expect(capturedRetryFunction).toBeDefined();
+      
+      // Test 401 error - should not retry
+      const shouldRetry401 = capturedRetryFunction(1, { status: 401 });
+      expect(shouldRetry401).toBe(false);
+    });
+    
+    it('should configure retry logic that prevents retry for 403 errors', () => {
+      render(
+        <Providers>
+          <TestChild />
+        </Providers>
+      );
+      
+      // Test 403 error - should not retry
+      const shouldRetry403 = capturedRetryFunction(1, { status: 403 });
+      expect(shouldRetry403).toBe(false);
+    });
+    
+    it('should configure retry logic that prevents retry for 404 errors', () => {
+      render(
+        <Providers>
+          <TestChild />
+        </Providers>
+      );
+      
+      // Test 404 error - should not retry
+      const shouldRetry404 = capturedRetryFunction(1, { status: 404 });
+      expect(shouldRetry404).toBe(false);
+    });
+    
+    it('should configure retry logic that allows retry for other errors up to 3 times', () => {
+      render(
+        <Providers>
+          <TestChild />
+        </Providers>
+      );
+      
+      // Test 500 error with failure count 1 - should retry
+      const shouldRetry500First = capturedRetryFunction(1, { status: 500 });
+      expect(shouldRetry500First).toBe(true);
+      
+      // Test 500 error with failure count 2 - should retry
+      const shouldRetry500Second = capturedRetryFunction(2, { status: 500 });
+      expect(shouldRetry500Second).toBe(true);
+      
+      // Test 500 error with failure count 3 - should not retry
+      const shouldRetry500Third = capturedRetryFunction(3, { status: 500 });
+      expect(shouldRetry500Third).toBe(false);
+      
+      // Test 500 error with failure count 4 - should not retry
+      const shouldRetry500Fourth = capturedRetryFunction(4, { status: 500 });
+      expect(shouldRetry500Fourth).toBe(false);
+    });
+    
+    it('should configure retry logic that allows retry for network errors', () => {
+      render(
+        <Providers>
+          <TestChild />
+        </Providers>
+      );
+      
+      // Test network error (no status) with failure count 1 - should retry
+      const shouldRetryNetwork1 = capturedRetryFunction(1, { message: 'Network error' });
+      expect(shouldRetryNetwork1).toBe(true);
+      
+      // Test network error (no status) with failure count 2 - should retry
+      const shouldRetryNetwork2 = capturedRetryFunction(2, { message: 'Network error' });
+      expect(shouldRetryNetwork2).toBe(true);
+      
+      // Test network error (no status) with failure count 3 - should not retry
+      const shouldRetryNetwork3 = capturedRetryFunction(3, { message: 'Network error' });
+      expect(shouldRetryNetwork3).toBe(false);
+    });
+    
+    it('should configure QueryClient with correct stale time', () => {
+      // Capture the full options
+      let capturedOptions: any = null;
+      
+      jest.spyOn(require('@tanstack/react-query'), 'QueryClient').mockImplementation((options: any) => {
+        capturedOptions = options;
+        return {
+          mount: jest.fn(),
+          unmount: jest.fn(),
+        } as any;
+      });
+      
+      render(
+        <Providers>
+          <TestChild />
+        </Providers>
+      );
+      
+      expect(capturedOptions).toBeDefined();
+      expect(capturedOptions.defaultOptions.queries.staleTime).toBe(60 * 1000); // 1 minute
+    });
+  });
+
   describe('Provider Accessibility', () => {
     it('should not interfere with child component accessibility', () => {
       render(

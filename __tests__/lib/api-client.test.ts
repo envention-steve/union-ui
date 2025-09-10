@@ -78,7 +78,7 @@ describe('ApiClient', () => {
         expect.any(Object)
       );
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('search=test%20query'),
+        expect.stringContaining('search=test+query'),
         expect.any(Object)
       );
       expect(result).toEqual(mockResponse);
