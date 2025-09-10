@@ -4,12 +4,7 @@ import Link from 'next/link';
 import { Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const navigation = [
-  { name: 'Home', href: '/' },
-  { name: 'Benefits', href: '/benefits' },
-  { name: 'Resources', href: '/resources' },
-  { name: 'Contact', href: '/contact' },
-];
+// Navigation items removed as only the main page and login are needed
 
 export function PublicHeader() {
   return (
@@ -26,20 +21,7 @@ export function PublicHeader() {
             </div>
           </div>
 
-          {/* Navigation */}
-          <nav className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-4">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className="text-union-100 hover:text-white hover:bg-union-700 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                >
-                  {item.name}
-                </Link>
-              ))}
-            </div>
-          </nav>
+          {/* Navigation removed - only main page and login needed */}
 
           {/* Manager Login Button */}
           <div className="flex items-center">

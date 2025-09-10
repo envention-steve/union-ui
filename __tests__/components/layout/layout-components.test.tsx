@@ -229,25 +229,27 @@ describe('Layout Components', () => {
   })
 
   describe('PublicHeader', () => {
-    it('should render public header with logo and navigation', () => {
+    it('should render public header with logo and login button', () => {
       render(<PublicHeader />)
       
       expect(screen.getByText('Union Benefits')).toBeInTheDocument()
-      expect(screen.getByText('Home')).toBeInTheDocument()
-      expect(screen.getByText('Benefits')).toBeInTheDocument()
-      expect(screen.getByText('Resources')).toBeInTheDocument()
-      expect(screen.getByText('Contact')).toBeInTheDocument()
       expect(screen.getByText('Manager Login')).toBeInTheDocument()
+      
+      // Navigation items should not be present
+      expect(screen.queryByText('Home')).not.toBeInTheDocument()
+      expect(screen.queryByText('Benefits')).not.toBeInTheDocument()
+      expect(screen.queryByText('Resources')).not.toBeInTheDocument()
+      expect(screen.queryByText('Contact')).not.toBeInTheDocument()
     })
 
-    it('should render all navigation links with correct hrefs', () => {
+    it('should render manager login link with correct href', () => {
       render(<PublicHeader />)
       
-      expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/')
-      expect(screen.getByRole('link', { name: 'Benefits' })).toHaveAttribute('href', '/benefits')
-      expect(screen.getByRole('link', { name: 'Resources' })).toHaveAttribute('href', '/resources')
-      expect(screen.getByRole('link', { name: 'Contact' })).toHaveAttribute('href', '/contact')
       expect(screen.getByRole('link', { name: 'Manager Login' })).toHaveAttribute('href', '/login')
+      
+      // Should only have one link now (the login button)
+      const links = screen.getAllByRole('link')
+      expect(links).toHaveLength(1)
     })
 
     it('should render logo with shield icon', () => {
@@ -359,9 +361,9 @@ describe('Layout Components', () => {
       render(<PublicHeader />)
       
       expect(screen.getByRole('banner')).toBeInTheDocument()
-      expect(screen.getByRole('navigation')).toBeInTheDocument()
+      // Navigation element removed, should only have the login link
       const links = screen.getAllByRole('link')
-      expect(links.length).toBeGreaterThan(0)
+      expect(links).toHaveLength(1)
     })
 
     it('should have proper ARIA roles in PublicFooter', () => {
@@ -374,11 +376,11 @@ describe('Layout Components', () => {
   })
 
   describe('Layout Components Responsive Behavior', () => {
-    it('should hide navigation on mobile in PublicHeader', () => {
+    it('should render without navigation menu', () => {
       render(<PublicHeader />)
       
-      const nav = screen.getByRole('navigation')
-      expect(nav).toHaveClass('hidden', 'md:block')
+      // Navigation menu should not exist
+      expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
     })
 
     it('should render proper mobile-responsive classes in PublicFooter', () => {
