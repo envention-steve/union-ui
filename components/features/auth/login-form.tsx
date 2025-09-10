@@ -45,7 +45,11 @@ export function LoginForm() {
 
     try {
       await login(data);
-      router.push('/dashboard');
+      
+      // Get callback URL from search params or default to dashboard
+      const urlParams = new URLSearchParams(window.location.search);
+      const callbackUrl = urlParams.get('callbackUrl') || '/dashboard';
+      router.push(callbackUrl);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Login failed');
     }

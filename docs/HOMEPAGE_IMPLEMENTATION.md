@@ -81,7 +81,7 @@ I have successfully transformed the Union Benefits UI application to feature a *
 ## 🚀 **Current Status**
 
 The application is now running with:
-- ✅ **Public homepage** at `http://localhost:3001`
+- ✅ **Public homepage** at `http://localhost:3000`
 - ✅ **Manager login** functionality preserved at `/login`
 - ✅ **Dashboard** still protected for authenticated users
 - ✅ **Build successful** with no errors

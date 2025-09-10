@@ -1,19 +1,29 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, AuthResponse, LoginCredentials } from '@/types';
-import { apiClient } from '@/lib/api-client';
+import { LoginCredentials } from '@/types';
+import { authApiClient } from '@/lib/api-client';
+
+interface SessionUser {
+  id: string;
+  email: string;
+  name: string;
+  preferred_username: string;
+  roles: string[];
+}
 
 interface AuthState {
-  user: User | null;
-  token: string | null;
+  user: SessionUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  expiresAt: number | null;
+  isExpiringSoon: boolean;
   
   // Actions
   login: (credentials: LoginCredentials) => Promise<void>;
-  logout: () => void;
-  setUser: (user: User) => void;
+  logout: () => Promise<void>;
+  refreshSession: () => Promise<void>;
+  setUser: (user: SessionUser) => void;
   setError: (error: string | null) => void;
   clearError: () => void;
   checkAuth: () => Promise<void>;
@@ -23,47 +33,47 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
-      token: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      expiresAt: null,
+      isExpiringSoon: false,
 
       login: async (credentials: LoginCredentials) => {
         set({ isLoading: true, error: null });
         
         try {
-          const response: AuthResponse = await apiClient.auth.login(credentials);
+          const response = await authApiClient.auth.login(credentials);
           
-          // Set the auth token for subsequent requests
-          apiClient.setAuthToken(response.access_token);
-          
-          set({
-            user: response.user,
-            token: response.access_token,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null,
-          });
+          if (response.success) {
+            set({
+              user: response.user,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+            });
+          } else {
+            throw new Error('Login failed');
+          }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Login failed';
           set({
             user: null,
-            token: null,
             isAuthenticated: false,
             isLoading: false,
             error: errorMessage,
+            expiresAt: null,
+            isExpiringSoon: false,
           });
           throw error;
         }
       },
 
-      logout: () => {
-        // Clear the auth token
-        apiClient.clearAuthToken();
+      logout: async () => {
+        set({ isLoading: true });
         
-        // Call logout API endpoint
         try {
-          apiClient.auth.logout();
+          await authApiClient.auth.logout();
         } catch (error) {
           // Ignore logout errors - we're logging out anyway
           console.warn('Logout API call failed:', error);
@@ -71,14 +81,35 @@ export const useAuthStore = create<AuthState>()(
         
         set({
           user: null,
-          token: null,
           isAuthenticated: false,
           isLoading: false,
           error: null,
+          expiresAt: null,
+          isExpiringSoon: false,
         });
       },
 
-      setUser: (user: User) => {
+      refreshSession: async () => {
+        try {
+          const response = await authApiClient.auth.refreshToken();
+          
+          if (response.success) {
+            set({
+              user: response.user,
+              isAuthenticated: true,
+              error: null,
+            });
+          } else {
+            throw new Error('Token refresh failed');
+          }
+        } catch (error) {
+          // Refresh failed, logout user
+          get().logout();
+          throw error;
+        }
+      },
+
+      setUser: (user: SessionUser) => {
         set({ user });
       },
 
@@ -91,31 +122,42 @@ export const useAuthStore = create<AuthState>()(
       },
 
       checkAuth: async () => {
-        const { token } = get();
-        
-        if (!token) {
-          set({ isAuthenticated: false, user: null });
-          return;
-        }
-
         try {
           set({ isLoading: true });
           
-          // Set the token for API requests
-          apiClient.setAuthToken(token);
+          const response = await authApiClient.auth.me();
           
-          // You might want to call a "me" endpoint to verify the token
-          // For now, we'll assume the token is valid if it exists in storage
-          set({ isAuthenticated: true, isLoading: false });
+          if (response.success) {
+            set({
+              user: response.user,
+              isAuthenticated: true,
+              isLoading: false,
+              expiresAt: response.expiresAt,
+              isExpiringSoon: response.isExpiringSoon,
+              error: null,
+            });
+            
+            // Auto-refresh if expiring soon
+            if (response.isExpiringSoon) {
+              try {
+                await get().refreshSession();
+              } catch (error) {
+                console.warn('Auto-refresh failed:', error);
+              }
+            }
+          } else {
+            throw new Error('Session invalid');
+          }
         } catch (error) {
-          // Token is invalid, clear auth state
+          // Session is invalid, clear auth state
           set({
             user: null,
-            token: null,
             isAuthenticated: false,
             isLoading: false,
+            expiresAt: null,
+            isExpiringSoon: false,
+            error: null,
           });
-          apiClient.clearAuthToken();
         }
       },
     }),
@@ -123,7 +165,6 @@ export const useAuthStore = create<AuthState>()(
       name: 'auth-storage',
       partialize: (state) => ({
         user: state.user,
-        token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
     }

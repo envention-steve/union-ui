@@ -80,94 +80,103 @@ class ApiClient {
     });
   }
 
-  // Authentication endpoints
-  auth = {
-    login: (credentials: { email: string; password: string }) =>
-      this.post<{ access_token: string; token_type: string; user: any }>('/api/v1/auth/login', credentials),
-    
-    register: (userData: { email: string; password: string; full_name: string; [key: string]: any }) =>
-      this.post<{ access_token: string; token_type: string; user: any }>('/api/v1/auth/register', userData),
-    
-    refreshToken: (refreshToken: string) =>
-      this.post<{ access_token: string; token_type: string }>('/api/v1/auth/refresh', { refresh_token: refreshToken }),
-    
-    logout: () =>
-      this.post<{ message: string }>('/api/v1/auth/logout'),
-  };
 
-  // Benefits endpoints
-  benefits = {
-    list: (params?: { page?: number; limit?: number; search?: string; category?: string }) =>
-      this.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/benefits', params),
-    
-    get: (id: string) =>
-      this.get<any>(`/api/v1/benefits/${id}`),
-    
-    create: (data: any) =>
-      this.post<any>('/api/v1/benefits', data),
-    
-    update: (id: string, data: any) =>
-      this.put<any>(`/api/v1/benefits/${id}`, data),
-    
-    delete: (id: string) =>
-      this.delete<{ message: string }>(`/api/v1/benefits/${id}`),
-  };
-
-  // Members endpoints
-  members = {
-    list: (params?: { page?: number; limit?: number; search?: string }) =>
-      this.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/members', params),
-    
-    get: (id: string) =>
-      this.get<any>(`/api/v1/members/${id}`),
-    
-    create: (data: any) =>
-      this.post<any>('/api/v1/members', data),
-    
-    update: (id: string, data: any) =>
-      this.put<any>(`/api/v1/members/${id}`, data),
-    
-    delete: (id: string) =>
-      this.delete<{ message: string }>(`/api/v1/members/${id}`),
-  };
-
-  // Plans endpoints
-  plans = {
-    list: (params?: { page?: number; limit?: number; search?: string }) =>
-      this.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/plans', params),
-    
-    get: (id: string) =>
-      this.get<any>(`/api/v1/plans/${id}`),
-    
-    create: (data: any) =>
-      this.post<any>('/api/v1/plans', data),
-    
-    update: (id: string, data: any) =>
-      this.put<any>(`/api/v1/plans/${id}`, data),
-    
-    delete: (id: string) =>
-      this.delete<{ message: string }>(`/api/v1/plans/${id}`),
-  };
-
-  // Dashboard endpoints
-  dashboard = {
-    getStats: () =>
-      this.get<{
-        totalMembers: number;
-        activeBenefits: number;
-        pendingClaims: number;
-        totalPremiums: number;
-        membersTrend: number;
-        benefitsTrend: number;
-        claimsTrend: number;
-        premiumsTrend: number;
-      }>('/api/v1/dashboard/stats'),
-  };
 }
 
-// Create and export the API client instance
-export const apiClient = new ApiClient(
+// Create separate API clients for different purposes
+
+// Auth API Client - for authentication (points to current Next.js app)
+export const authApiClient = new ApiClient(
+  process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+);
+
+// Add auth endpoints to authApiClient
+authApiClient.auth = {
+  login: (credentials: { email: string; password: string }) =>
+    authApiClient.post<{ success: boolean; user: any; message: string }>('/api/auth/login', credentials),
+  
+  logout: () =>
+    authApiClient.post<{ success: boolean; message: string }>('/api/auth/logout'),
+  
+  refreshToken: () =>
+    authApiClient.post<{ success: boolean; user: any; message: string }>('/api/auth/refresh'),
+  
+  me: () =>
+    authApiClient.get<{ success: boolean; user: any; expiresAt: number; isExpiringSoon: boolean }>('/api/auth/me'),
+};
+
+// Backend API Client - for business logic (points to your backend server)
+export const backendApiClient = new ApiClient(
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 );
+
+// Add business endpoints to backendApiClient
+backendApiClient.benefits = {
+  list: (params?: { page?: number; limit?: number; search?: string; category?: string }) =>
+    backendApiClient.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/benefits', params),
+  
+  get: (id: string) =>
+    backendApiClient.get<any>(`/api/v1/benefits/${id}`),
+  
+  create: (data: any) =>
+    backendApiClient.post<any>('/api/v1/benefits', data),
+  
+  update: (id: string, data: any) =>
+    backendApiClient.put<any>(`/api/v1/benefits/${id}`, data),
+  
+  delete: (id: string) =>
+    backendApiClient.delete<{ message: string }>(`/api/v1/benefits/${id}`),
+};
+
+backendApiClient.members = {
+  list: (params?: { page?: number; limit?: number; search?: string }) =>
+    backendApiClient.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/members', params),
+  
+  get: (id: string) =>
+    backendApiClient.get<any>(`/api/v1/members/${id}`),
+  
+  create: (data: any) =>
+    backendApiClient.post<any>('/api/v1/members', data),
+  
+  update: (id: string, data: any) =>
+    backendApiClient.put<any>(`/api/v1/members/${id}`, data),
+  
+  delete: (id: string) =>
+    backendApiClient.delete<{ message: string }>(`/api/v1/members/${id}`),
+};
+
+backendApiClient.plans = {
+  list: (params?: { page?: number; limit?: number; search?: string }) =>
+    backendApiClient.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/plans', params),
+  
+  get: (id: string) =>
+    backendApiClient.get<any>(`/api/v1/plans/${id}`),
+  
+  create: (data: any) =>
+    backendApiClient.post<any>('/api/v1/plans', data),
+  
+  update: (id: string, data: any) =>
+    backendApiClient.put<any>(`/api/v1/plans/${id}`, data),
+  
+  delete: (id: string) =>
+    backendApiClient.delete<{ message: string }>(`/api/v1/plans/${id}`),
+};
+
+backendApiClient.dashboard = {
+  getStats: () =>
+    backendApiClient.get<{
+      totalMembers: number;
+      activeBenefits: number;
+      pendingClaims: number;
+      totalPremiums: number;
+      membersTrend: number;
+      benefitsTrend: number;
+      claimsTrend: number;
+      premiumsTrend: number;
+    }>('/api/v1/dashboard/stats'),
+};
+
+// For backward compatibility, keep the main apiClient pointing to auth
+export const apiClient = authApiClient;
 
 export default apiClient;

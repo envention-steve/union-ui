@@ -1,13 +1,17 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { LoginForm } from '@/components/features/auth/login-form';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const { isAuthenticated, checkAuth } = useAuthStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -15,9 +19,19 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.push('/dashboard');
+      const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
+      router.push(callbackUrl);
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, searchParams]);
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error === 'session-expired') {
+      setUrlError('Your session has expired. Please log in again.');
+    } else if (error) {
+      setUrlError('Authentication error. Please try again.');
+    }
+  }, [searchParams]);
 
   if (isAuthenticated) {
     return null; // Will redirect to dashboard
@@ -34,6 +48,14 @@ export default function LoginPage() {
             Comprehensive benefits management platform
           </p>
         </div>
+        
+        {urlError && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{urlError}</AlertDescription>
+          </Alert>
+        )}
+        
         <LoginForm />
       </div>
     </div>
