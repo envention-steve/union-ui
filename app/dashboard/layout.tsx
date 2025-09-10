@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { DashboardHeader } from '@/components/layout/dashboard-header';
@@ -12,18 +12,61 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuthAndRefresh } = useAuthStore();
   const router = useRouter();
+  const hasTriedRefresh = useRef(false);
 
+  // Initial auth check on mount
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login');
+    async function handleAuth() {
+      console.log('[DASHBOARD_LAYOUT] Initial auth check...');
+      try {
+        const isAuth = await checkAuthAndRefresh();
+        if (!isAuth) {
+          console.log('[DASHBOARD_LAYOUT] Initial auth failed, redirecting to login');
+          router.push('/login');
+        } else {
+          // Reset the refresh flag on successful auth
+          hasTriedRefresh.current = false;
+        }
+      } catch (error) {
+        console.error('[DASHBOARD_LAYOUT] Initial auth check error:', error);
+        router.push('/login');
+      }
     }
-  }, [isAuthenticated, isLoading, router]);
+
+    handleAuth();
+  }, [checkAuthAndRefresh, router]);
+
+  // Last chance refresh when isAuthenticated becomes false
+  useEffect(() => {
+    async function handleAuthLoss() {
+      // Only attempt refresh if:
+      // 1. User is not authenticated
+      // 2. Not currently loading
+      // 3. Haven't already tried refreshing (prevent infinite loop)
+      if (!isAuthenticated && !isLoading && !hasTriedRefresh.current) {
+        console.log('[DASHBOARD_LAYOUT] Auth lost, attempting last chance refresh...');
+        hasTriedRefresh.current = true;
+        
+        try {
+          const isAuth = await checkAuthAndRefresh();
+          if (isAuth) {
+            console.log('[DASHBOARD_LAYOUT] Last chance refresh successful!');
+            // Don't reset hasTriedRefresh here - let the initial auth effect handle it
+          } else {
+            console.log('[DASHBOARD_LAYOUT] Last chance refresh failed, redirecting to login');
+            router.push('/login');
+          }
+        } catch (error) {
+          console.error('[DASHBOARD_LAYOUT] Last chance refresh error:', error);
+          router.push('/login');
+        }
+      }
+    }
+
+    handleAuthLoss();
+  }, [isAuthenticated, isLoading, checkAuthAndRefresh, router]);
 
   if (isLoading) {
     return (

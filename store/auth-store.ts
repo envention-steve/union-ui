@@ -28,6 +28,7 @@ interface AuthState {
   setError: (error: string | null) => void;
   clearError: () => void;
   checkAuth: () => Promise<void>;
+  checkAuthAndRefresh: () => Promise<boolean>; // Returns true if user is authenticated after refresh attempt
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -133,9 +134,10 @@ export const useAuthStore = create<AuthState>()(
             throw new Error('Token refresh failed');
           }
         } catch (error) {
-          // Refresh failed, logout user
+          console.error('[AUTH_STORE] Token refresh failed:', error);
           set({ isLoading: false });
-          await get().logout();
+          
+          // Don't automatically logout - let caller decide what to do
           throw error;
         }
       },
@@ -178,15 +180,6 @@ export const useAuthStore = create<AuthState>()(
               isExpiringSoon: response.isExpiringSoon,
               error: null,
             });
-            
-            // Auto-refresh if expiring soon
-            if (response.isExpiringSoon) {
-              try {
-                await get().refreshSession();
-              } catch (error) {
-                console.warn('Auto-refresh failed:', error);
-              }
-            }
           } else {
             throw new Error('Session invalid');
           }
@@ -203,6 +196,104 @@ export const useAuthStore = create<AuthState>()(
             isExpiringSoon: false,
             error: null,
           });
+        }
+      },
+
+      checkAuthAndRefresh: async () => {
+        console.log('[AUTH_STORE] checkAuthAndRefresh called');
+        try {
+          set({ isLoading: true });
+          
+          const response = await authApiClient.auth.me();
+          
+          if (response.success) {
+            console.log('[AUTH_STORE] Valid session found');
+            // Update token manager by fetching token
+            try {
+              const tokenResp = await fetch('/api/auth/token', { credentials: 'include' });
+              if (tokenResp.ok) {
+                const data = await tokenResp.json();
+                authTokenManager.setToken(data.accessToken);
+              }
+            } catch (e) {
+              console.warn('Unable to set token during auth check');
+            }
+
+            set({
+              user: response.user,
+              isAuthenticated: true,
+              isLoading: false,
+              expiresAt: response.expiresAt,
+              isExpiringSoon: response.isExpiringSoon,
+              error: null,
+            });
+            
+            // If token is expiring soon or expired, try to refresh
+            const now = Math.floor(Date.now() / 1000);
+            const isExpired = response.expiresAt <= now;
+            const isExpiringSoon = response.expiresAt - now < 600; // 10 minutes
+            
+            if (isExpired || isExpiringSoon) {
+              console.log(`[AUTH_STORE] Token needs refresh - expired: ${isExpired}, expiring soon: ${isExpiringSoon}`);
+              try {
+                await get().refreshSession();
+                console.log('[AUTH_STORE] Token refresh successful');
+                return true;
+              } catch (error) {
+                console.warn('[AUTH_STORE] Token refresh failed:', error);
+                // If refresh failed and token is expired, return false
+                if (isExpired) {
+                  return false;
+                }
+                // If just expiring soon, still consider authenticated
+                return true;
+              }
+            }
+            
+            return true;
+          } else {
+            console.log('[AUTH_STORE] No valid session found, checking for expired session to refresh');
+            // Try to refresh with potentially expired session
+            try {
+              await get().refreshSession();
+              console.log('[AUTH_STORE] Refresh successful for expired session');
+              return true;
+            } catch (error) {
+              console.log('[AUTH_STORE] Refresh failed for expired session:', error);
+              // Clear auth state
+              authTokenManager.clearToken();
+              set({
+                user: null,
+                isAuthenticated: false,
+                isLoading: false,
+                expiresAt: null,
+                isExpiringSoon: false,
+                error: null,
+              });
+              return false;
+            }
+          }
+        } catch (error) {
+          console.log('[AUTH_STORE] checkAuthAndRefresh failed:', error);
+          // Try refresh as last resort
+          try {
+            await get().refreshSession();
+            console.log('[AUTH_STORE] Last resort refresh successful');
+            return true;
+          } catch (refreshError) {
+            console.log('[AUTH_STORE] Last resort refresh failed:', refreshError);
+            // Clear auth state
+            authTokenManager.clearToken();
+            set({
+              user: null,
+              isAuthenticated: false,
+              isLoading: false,
+              expiresAt: null,
+              isExpiringSoon: false,
+              error: null,
+            });
+            return false;
+          }
         }
       },
     }),
