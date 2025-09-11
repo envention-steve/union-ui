@@ -363,6 +363,9 @@ class AuthenticatedBackendApiClient extends ApiClient {
       get: (id: string) =>
         this.get<any>(`/api/v1/members/${id}`),
       
+      getDetails: (id: string) =>
+        this.get<any>(`/api/v1/members/${id}/details`),
+      
       create: (data: any) =>
         this.post<any>('/api/v1/members', data),
       

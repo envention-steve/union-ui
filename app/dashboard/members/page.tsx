@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { backendApiClient } from '@/lib/api-client';
 import { Member } from '@/types';
+import { useRouter } from 'next/navigation';
 
 
 export default function MembersPage() {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -101,12 +103,12 @@ export default function MembersPage() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
-  // Action handlers (TODO: wire to routes/modals)
+  // Action handlers
   const handleViewMember = (id: number) => {
-    console.log('View member', id);
+    router.push(`/dashboard/members/${id}?mode=view`);
   };
   const handleEditMember = (id: number) => {
-    console.log('Edit member', id);
+    router.push(`/dashboard/members/${id}?mode=edit`);
   };
   const handleDeleteMember = async (id: number) => {
     if (!confirm('Are you sure you want to deactivate this member?')) return;
