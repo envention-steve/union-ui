@@ -63,6 +63,49 @@ export interface BenefitFormData {
   eligibilityRules?: string;
 }
 
+// Coverage types
+export interface DistributionClass {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  name: string;
+  description: string;
+}
+
+export interface MemberStatus {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  name: string;
+  admin_fee: string;
+}
+
+export interface BaseCoverage {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  start_date: string;
+  end_date?: string;
+  member_id: number;
+}
+
+export interface DistributionClassCoverage extends BaseCoverage {
+  distribution_class_id: number;
+  distribution_class?: DistributionClass;
+}
+
+export interface MemberStatusCoverage extends BaseCoverage {
+  member_status_id: number;
+  member_status?: MemberStatus;
+}
+
+export interface LifeInsuranceCoverage extends BaseCoverage {
+  beneficiary_info_received?: boolean;
+  status?: string;
+  beneficiary?: string;
+  life_insurance_person_id?: number;
+}
+
 // Member types - Updated to match FastAPI backend structure
 export interface Member {
   id: number;
@@ -90,6 +133,10 @@ export interface Member {
   employer?: string; // From relationships
   plan?: string; // From relationships 
   status?: 'Active' | 'Pending' | 'Inactive'; // Computed status
+  // Coverage relationships
+  distribution_class_coverages?: DistributionClassCoverage[];
+  member_status_coverages?: MemberStatusCoverage[];
+  life_insurance_coverages?: LifeInsuranceCoverage[];
 }
 
 export type EmploymentStatus = 

@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { 
@@ -52,10 +51,55 @@ interface EmailAddress {
   email: string;
 }
 
+interface DistributionClass {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  name: string;
+  description: string;
+}
+
+interface MemberStatus {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  name: string;
+  admin_fee: string;
+}
+
+interface Coverage {
+  id?: number;
+  status?: string;
+  start_date: string;
+  end_date?: string;
+  member_id: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface DistributionClassCoverage extends Coverage {
+  distribution_class_id: number;
+  distribution_class?: DistributionClass;
+}
+
+interface MemberStatusCoverage extends Coverage {
+  member_status_id: number;
+  member_status?: MemberStatus;
+}
+
+interface LifeInsuranceCoverage extends Coverage {
+  beneficiary_info_received?: boolean;
+  beneficiary?: string;
+  life_insurance_person_id?: number;
+}
+
 interface MemberFormData extends Member {
   addresses: Address[];
   phoneNumbers: PhoneNumber[];
   emailAddresses: EmailAddress[];
+  distribution_class_coverages: DistributionClassCoverage[];
+  member_status_coverages: MemberStatusCoverage[];
+  life_insurance_coverages: LifeInsuranceCoverage[];
 }
 
 const TABS = [
@@ -103,6 +147,9 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     addresses: [],
     phoneNumbers: [],
     emailAddresses: [],
+    distribution_class_coverages: [],
+    member_status_coverages: [],
+    life_insurance_coverages: [],
   });
 
   // Check for unsaved changes
@@ -145,6 +192,9 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         addresses: response.addresses || [],
         phoneNumbers: response.phone_numbers || [],
         emailAddresses: response.email_addresses || [],
+        distribution_class_coverages: response.distribution_class_coverages || [],
+        member_status_coverages: response.member_status_coverages || [],
+        life_insurance_coverages: response.life_insurance_coverages || [],
       };
       
       setFormData(memberData);
@@ -281,6 +331,106 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         { type: 'Personal', email: '' }
       ]
     }));
+  };
+
+  // Coverage display component
+  const CoverageList = ({ 
+    title, 
+    coverages, 
+    type 
+  }: { 
+    title: string; 
+    coverages: DistributionClassCoverage[] | MemberStatusCoverage[] | LifeInsuranceCoverage[];
+    type: 'distribution_class' | 'member_status' | 'life_insurance';
+  }) => {
+    const getDisplayName = (coverage: any) => {
+      if (type === 'distribution_class' && coverage.distribution_class) {
+        return coverage.distribution_class.description;
+      }
+      if (type === 'member_status' && coverage.member_status) {
+        return coverage.member_status.name;
+      }
+      return coverage.status || 'N/A';
+    };
+
+    const getSecondaryInfo = (coverage: any) => {
+      if (type === 'distribution_class' && coverage.distribution_class) {
+        return `Class: ${coverage.distribution_class.name}`;
+      }
+      if (type === 'member_status' && coverage.member_status) {
+        return `Admin Fee: $${coverage.member_status.admin_fee}`;
+      }
+      if (type === 'life_insurance') {
+        const info = [];
+        if (coverage.beneficiary) info.push(`Beneficiary: ${coverage.beneficiary}`);
+        if (coverage.beneficiary_info_received !== undefined) {
+          info.push(`Beneficiary Info: ${coverage.beneficiary_info_received ? 'Received' : 'Pending'}`);
+        }
+        return info.length > 0 ? info.join(' | ') : null;
+      }
+      return null;
+    };
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">{title}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {coverages.length === 0 ? (
+            <p className="text-gray-500 text-sm">No {title.toLowerCase()} found</p>
+          ) : (
+            <div className="space-y-3">
+              {coverages.map((coverage, index) => {
+                const displayName = getDisplayName(coverage);
+                const secondaryInfo = getSecondaryInfo(coverage);
+                
+                return (
+                  <div key={coverage.id || index} className="border rounded-lg p-4">
+                    <div className="space-y-3">
+                      {/* Main coverage name/description */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {type === 'distribution_class' ? 'Distribution Class' : 
+                           type === 'member_status' ? 'Member Status' : 'Coverage Type'}
+                        </label>
+                        <p className="text-sm font-medium text-gray-900">{displayName}</p>
+                        {secondaryInfo && (
+                          <p className="text-xs text-gray-600 mt-1">{secondaryInfo}</p>
+                        )}
+                      </div>
+                      
+                      {/* Date information */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Start Date
+                          </label>
+                          <p className="text-sm">
+                            {coverage.start_date ? new Date(coverage.start_date).toLocaleDateString() : 'N/A'}
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            End Date
+                          </label>
+                          <p className="text-sm">
+                            {coverage.end_date ? new Date(coverage.end_date).toLocaleDateString() : (
+                              <span className="text-green-600 font-medium">Active</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
   };
 
   const removeEmailAddress = (index: number) => {
@@ -871,6 +1021,25 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
               )}
             </CardContent>
           </Card>
+
+          {/* Coverage Sections */}
+          <CoverageList 
+            title="Distribution Class Coverages" 
+            coverages={formData.distribution_class_coverages}
+            type="distribution_class"
+          />
+          
+          <CoverageList 
+            title="Member Status Coverages" 
+            coverages={formData.member_status_coverages}
+            type="member_status"
+          />
+          
+          <CoverageList 
+            title="Life Insurance Coverages" 
+            coverages={formData.life_insurance_coverages}
+            type="life_insurance"
+          />
         </div>
       )}
 
