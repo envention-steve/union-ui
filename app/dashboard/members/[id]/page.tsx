@@ -1025,26 +1025,28 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
           {/* Coverage Sections */}
           <CoverageList 
             title="Distribution Class Coverages" 
-            coverages={formData.distribution_class_coverages}
-            type="distribution_class"
+            coverages={formData.distribution_class_coverages} 
           />
           
           <CoverageList 
             title="Member Status Coverages" 
-            coverages={formData.member_status_coverages}
-            type="member_status"
+            coverages={formData.member_status_coverages} 
           />
-          
+        </div>
+      )}
+
+      {/* Life Insurance Tab */}
+      {activeTab === 'life-insurance' && (
+        <div className="grid gap-6">
           <CoverageList 
             title="Life Insurance Coverages" 
-            coverages={formData.life_insurance_coverages}
-            type="life_insurance"
+            coverages={formData.life_insurance_coverages} 
           />
         </div>
       )}
 
       {/* Placeholder for other tabs */}
-      {activeTab !== 'member' && (
+      {activeTab !== 'member' && activeTab !== 'life-insurance' && (
         <Card>
           <CardContent className="p-12 text-center">
             <div className="text-gray-500">

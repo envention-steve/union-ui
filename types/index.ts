@@ -106,6 +106,30 @@ export interface LifeInsuranceCoverage extends BaseCoverage {
   life_insurance_person_id?: number;
 }
 
+// Dependent types
+export interface Dependent {
+  id: number;
+  first_name: string;
+  last_name: string;
+  middle_name?: string;
+  suffix?: string;
+  phone?: string;
+  email?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  birth_date?: string;
+  created_at: string;
+  updated_at: string;
+  dependent_type: string;
+  include_cms: boolean;
+  marriage_date?: string;
+  marriage_certificate?: boolean;
+}
+
+export interface DependentCoverage extends BaseCoverage {
+  dependent_id: number;
+  dependent?: Dependent;
+}
+
 // Member types - Updated to match FastAPI backend structure
 export interface Member {
   id: number;
@@ -134,6 +158,7 @@ export interface Member {
   plan?: string; // From relationships 
   status?: 'Active' | 'Pending' | 'Inactive'; // Computed status
   // Coverage relationships
+  dependent_coverages?: DependentCoverage[];
   distribution_class_coverages?: DistributionClassCoverage[];
   member_status_coverages?: MemberStatusCoverage[];
   life_insurance_coverages?: LifeInsuranceCoverage[];
