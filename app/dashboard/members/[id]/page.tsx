@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -69,10 +70,86 @@ interface MemberStatus {
 
 interface Coverage {
   id?: number;
-  status?: string;
+  status: string;
+  start_date: string;
+  end_date?: string;
+}
+
+interface Dependent {
+  id?: number;
+  first_name: string;
+  middle_name?: string;
+  last_name: string;
+  suffix?: string;
+  ssn?: string;
+  birth_date: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  dependent_type: 'SPOUSE' | 'DEPENDENT' | 'CHILD';
+  include_cms: boolean;
+}
+
+interface DependentCoverage {
+  id?: number;
   start_date: string;
   end_date?: string;
   member_id: number;
+  dependent_id: number;
+  dependent: Dependent;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface Employer {
+  id?: number;
+  name: string;
+  ein?: string;
+  include_cms: boolean;
+  is_forced_distribution: boolean;
+  force_distribution_class_id?: number;
+  employer_type_id?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface EmployerCoverage {
+  id?: number;
+  start_date: string;
+  end_date?: string;
+  member_id: number;
+  employer_id: number;
+  employer: Employer;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface InsurancePlan {
+  id?: number;
+  name: string;
+  code: string;
+  type: 'HEALTH' | 'DENTAL' | 'VISION' | 'OTHER';
+  group: string;
+  include_cms: boolean;
+  insurance_plan_company_id?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface InsurancePlanCoverage {
+  id?: number;
+  start_date: string;
+  end_date?: string;
+  member_id: number;
+  insurance_plan_id: number;
+  policy_number: string;
+  insurance_plan: InsurancePlan;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface MemberNote {
+  id?: number;
+  member_id: number;
+  message: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -97,9 +174,13 @@ interface MemberFormData extends Member {
   addresses: Address[];
   phoneNumbers: PhoneNumber[];
   emailAddresses: EmailAddress[];
-  distribution_class_coverages: DistributionClassCoverage[];
-  member_status_coverages: MemberStatusCoverage[];
-  life_insurance_coverages: LifeInsuranceCoverage[];
+  distribution_class_coverages: Coverage[];
+  member_status_coverages: Coverage[];
+  life_insurance_coverages: Coverage[];
+  dependent_coverages: DependentCoverage[];
+  employer_coverages: EmployerCoverage[];
+  insurance_plan_coverages: InsurancePlanCoverage[];
+  member_notes: MemberNote[];
 }
 
 const TABS = [
@@ -150,6 +231,10 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     distribution_class_coverages: [],
     member_status_coverages: [],
     life_insurance_coverages: [],
+    dependent_coverages: [],
+    employer_coverages: [],
+    insurance_plan_coverages: [],
+    member_notes: [],
   });
 
   // Check for unsaved changes
@@ -195,6 +280,10 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         distribution_class_coverages: response.distribution_class_coverages || [],
         member_status_coverages: response.member_status_coverages || [],
         life_insurance_coverages: response.life_insurance_coverages || [],
+        dependent_coverages: response.dependent_coverages || [],
+        employer_coverages: response.employer_coverages || [],
+        insurance_plan_coverages: response.insurance_plan_coverages || [],
+        member_notes: response.member_notes || [],
       };
       
       setFormData(memberData);
@@ -333,6 +422,197 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }));
   };
 
+  const removeEmailAddress = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      emailAddresses: prev.emailAddresses.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateEmailAddress = (index: number, field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      emailAddresses: prev.emailAddresses.map((email, i) => 
+        i === index ? { ...email, [field]: value } : email
+      )
+    }));
+  };
+
+  const addDependent = () => {
+    const newDependentCoverage: DependentCoverage = {
+      start_date: new Date().toISOString(),
+      member_id: formData.id,
+      dependent_id: 0, // Will be set by API
+      dependent: {
+        first_name: '',
+        middle_name: '',
+        last_name: '',
+        ssn: '',
+        birth_date: '',
+        gender: undefined,
+        dependent_type: 'DEPENDENT',
+        include_cms: false,
+      }
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      dependent_coverages: [...prev.dependent_coverages, newDependentCoverage]
+    }));
+  };
+
+  const removeDependent = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      dependent_coverages: prev.dependent_coverages.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateDependent = (index: number, field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      dependent_coverages: prev.dependent_coverages.map((depCoverage, i) => 
+        i === index 
+          ? {
+              ...depCoverage,
+              dependent: {
+                ...depCoverage.dependent,
+                [field]: value
+              }
+            }
+          : depCoverage
+      )
+    }));
+  };
+
+  const addEmployer = () => {
+    const newEmployerCoverage: EmployerCoverage = {
+      start_date: new Date().toISOString(),
+      member_id: formData.id,
+      employer_id: 0, // Will be set by API
+      employer: {
+        name: '',
+        ein: '',
+        include_cms: false,
+        is_forced_distribution: false,
+        force_distribution_class_id: undefined,
+        employer_type_id: undefined,
+      }
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      employer_coverages: [...prev.employer_coverages, newEmployerCoverage]
+    }));
+  };
+
+  const removeEmployer = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      employer_coverages: prev.employer_coverages.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateEmployer = (index: number, field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      employer_coverages: prev.employer_coverages.map((empCoverage, i) => 
+        i === index 
+          ? {
+              ...empCoverage,
+              employer: {
+                ...empCoverage.employer,
+                [field]: value
+              }
+            }
+          : empCoverage
+      )
+    }));
+  };
+
+  const addInsurancePlan = () => {
+    const newInsurancePlanCoverage: InsurancePlanCoverage = {
+      start_date: new Date().toISOString(),
+      member_id: formData.id,
+      insurance_plan_id: 0, // Will be set by API
+      policy_number: '',
+      insurance_plan: {
+        name: '',
+        code: '',
+        type: 'HEALTH',
+        group: '',
+        include_cms: false,
+        insurance_plan_company_id: undefined,
+      }
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      insurance_plan_coverages: [...prev.insurance_plan_coverages, newInsurancePlanCoverage]
+    }));
+  };
+
+  const removeInsurancePlan = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      insurance_plan_coverages: prev.insurance_plan_coverages.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateInsurancePlan = (index: number, field: string, value: any) => {
+    if (field === 'policy_number') {
+      setFormData(prev => ({
+        ...prev,
+        insurance_plan_coverages: prev.insurance_plan_coverages.map((planCoverage, i) => 
+          i === index ? { ...planCoverage, [field]: value } : planCoverage
+        )
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        insurance_plan_coverages: prev.insurance_plan_coverages.map((planCoverage, i) => 
+          i === index 
+            ? {
+                ...planCoverage,
+                insurance_plan: {
+                  ...planCoverage.insurance_plan,
+                  [field]: value
+                }
+              }
+            : planCoverage
+        )
+      }));
+    }
+  };
+
+  const addNote = () => {
+    const newNote: MemberNote = {
+      member_id: formData.id,
+      message: '',
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      member_notes: [...prev.member_notes, newNote]
+    }));
+  };
+
+  const removeNote = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      member_notes: prev.member_notes.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateNote = (index: number, field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      member_notes: prev.member_notes.map((note, i) => 
+        i === index ? { ...note, [field]: value } : note
+      )
+    }));
+  };
+
   // Coverage display component
   const CoverageList = ({ 
     title, 
@@ -431,22 +711,6 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         </CardContent>
       </Card>
     );
-  };
-
-  const removeEmailAddress = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      emailAddresses: prev.emailAddresses.filter((_, i) => i !== index)
-    }));
-  };
-
-  const updateEmailAddress = (index: number, field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      emailAddresses: prev.emailAddresses.map((email, i) => 
-        i === index ? { ...email, [field]: value } : email
-      )
-    }));
   };
 
   if (loading) {
@@ -1045,8 +1309,572 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
+      {/* Dependents Tab */}
+      {activeTab === 'dependents' && (
+        <div className="grid gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Dependents</CardTitle>
+              {isEditMode && (
+                <Button 
+                  onClick={addDependent}
+                  size="sm"
+                  className="bg-union-600 hover:bg-union-700 text-white"
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  Add Dependent
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {formData.dependent_coverages.length === 0 ? (
+                <p className="text-gray-500 text-sm">No dependents found</p>
+              ) : (
+                formData.dependent_coverages.map((dependentCoverage, index) => {
+                  const dependent = dependentCoverage.dependent;
+                  return (
+                    <div key={dependentCoverage.id || index} className="border rounded-lg p-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-medium text-gray-900">
+                          {dependent.first_name} {dependent.middle_name} {dependent.last_name}
+                        </h3>
+                        {isEditMode && (
+                          <Button 
+                            onClick={() => removeDependent(index)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            First Name
+                          </label>
+                          <Input
+                            value={dependent.first_name}
+                            onChange={(e) => updateDependent(index, 'first_name', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Middle Name
+                          </label>
+                          <Input
+                            value={dependent.middle_name || ''}
+                            onChange={(e) => updateDependent(index, 'middle_name', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Last Name
+                          </label>
+                          <Input
+                            value={dependent.last_name}
+                            onChange={(e) => updateDependent(index, 'last_name', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            SSN
+                          </label>
+                          <Input
+                            value={dependent.ssn || ''}
+                            onChange={(e) => updateDependent(index, 'ssn', e.target.value)}
+                            disabled={!isEditMode}
+                            placeholder="xxx-xx-xxxx"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Gender
+                          </label>
+                          <Select 
+                            value={dependent.gender || 'not-specified'} 
+                            onValueChange={(value) => updateDependent(index, 'gender', value === 'not-specified' ? undefined : value)}
+                            disabled={!isEditMode}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select Gender" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="not-specified">Not Specified</SelectItem>
+                              <SelectItem value="MALE">Male</SelectItem>
+                              <SelectItem value="FEMALE">Female</SelectItem>
+                              <SelectItem value="OTHER">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Birth Date
+                          </label>
+                          <Input
+                            type="date"
+                            value={dependent.birth_date ? dependent.birth_date.split('T')[0] : ''}
+                            onChange={(e) => updateDependent(index, 'birth_date', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Relationship
+                          </label>
+                          <Select 
+                            value={dependent.dependent_type} 
+                            onValueChange={(value) => updateDependent(index, 'dependent_type', value)}
+                            disabled={!isEditMode}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="SPOUSE">Spouse</SelectItem>
+                              <SelectItem value="CHILD">Child</SelectItem>
+                              <SelectItem value="DEPENDENT">Dependent</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Coverage Period</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Start Date
+                            </label>
+                            <p className="text-sm text-gray-600">
+                              {dependentCoverage.start_date ? new Date(dependentCoverage.start_date).toLocaleDateString() : 'N/A'}
+                            </p>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              End Date
+                            </label>
+                            <p className="text-sm text-gray-600">
+                              {dependentCoverage.end_date ? new Date(dependentCoverage.end_date).toLocaleDateString() : 'Active'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Employers Tab */}
+      {activeTab === 'employers' && (
+        <div className="grid gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Employers</CardTitle>
+              {isEditMode && (
+                <Button 
+                  onClick={addEmployer}
+                  size="sm"
+                  className="bg-union-600 hover:bg-union-700 text-white"
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  Add Employer
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {formData.employer_coverages.length === 0 ? (
+                <p className="text-gray-500 text-sm">No employers found</p>
+              ) : (
+                formData.employer_coverages.map((employerCoverage, index) => {
+                  const employer = employerCoverage.employer;
+                  return (
+                    <div key={employerCoverage.id || index} className="border rounded-lg p-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-medium text-gray-900">
+                          {employer.name || 'Unnamed Employer'}
+                        </h3>
+                        {isEditMode && (
+                          <Button 
+                            onClick={() => removeEmployer(index)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Employer Name
+                          </label>
+                          <Input
+                            value={employer.name}
+                            onChange={(e) => updateEmployer(index, 'name', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            EIN (Employer Identification Number)
+                          </label>
+                          <Input
+                            value={employer.ein || ''}
+                            onChange={(e) => updateEmployer(index, 'ein', e.target.value)}
+                            disabled={!isEditMode}
+                            placeholder="xx-xxxxxxx"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Employer Type ID
+                          </label>
+                          <Input
+                            type="number"
+                            value={employer.employer_type_id || ''}
+                            onChange={(e) => updateEmployer(index, 'employer_type_id', e.target.value ? parseInt(e.target.value) : undefined)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Force Distribution Class ID
+                          </label>
+                          <Input
+                            type="number"
+                            value={employer.force_distribution_class_id || ''}
+                            onChange={(e) => updateEmployer(index, 'force_distribution_class_id', e.target.value ? parseInt(e.target.value) : undefined)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Checkbox Fields */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`employer-include-cms-${index}`}
+                            checked={employer.include_cms}
+                            onCheckedChange={(checked) => updateEmployer(index, 'include_cms', checked)}
+                            disabled={!isEditMode}
+                          />
+                          <Label 
+                            htmlFor={`employer-include-cms-${index}`} 
+                            className="text-sm font-medium text-gray-700 cursor-pointer"
+                          >
+                            Include in CMS Report
+                          </Label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`employer-forced-distribution-${index}`}
+                            checked={employer.is_forced_distribution}
+                            onCheckedChange={(checked) => updateEmployer(index, 'is_forced_distribution', checked)}
+                            disabled={!isEditMode}
+                          />
+                          <Label 
+                            htmlFor={`employer-forced-distribution-${index}`} 
+                            className="text-sm font-medium text-gray-700 cursor-pointer"
+                          >
+                            Is Forced Distribution
+                          </Label>
+                        </div>
+                      </div>
+                      
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Employment Period</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Start Date
+                            </label>
+                            <p className="text-sm text-gray-600">
+                              {employerCoverage.start_date ? new Date(employerCoverage.start_date).toLocaleDateString() : 'N/A'}
+                            </p>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              End Date
+                            </label>
+                            <p className="text-sm text-gray-600">
+                              {employerCoverage.end_date ? new Date(employerCoverage.end_date).toLocaleDateString() : 'Active'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Health Coverage Tab */}
+      {activeTab === 'health-coverage' && (
+        <div className="grid gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Health Coverage</CardTitle>
+              {isEditMode && (
+                <Button 
+                  onClick={addInsurancePlan}
+                  size="sm"
+                  className="bg-union-600 hover:bg-union-700 text-white"
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  Add Insurance Plan
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {formData.insurance_plan_coverages.length === 0 ? (
+                <p className="text-gray-500 text-sm">No insurance plans found</p>
+              ) : (
+                formData.insurance_plan_coverages.map((planCoverage, index) => {
+                  const plan = planCoverage.insurance_plan;
+                  return (
+                    <div key={planCoverage.id || index} className="border rounded-lg p-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-medium text-gray-900">
+                          {plan.name || 'Unnamed Insurance Plan'}
+                        </h3>
+                        {isEditMode && (
+                          <Button 
+                            onClick={() => removeInsurancePlan(index)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Plan Name
+                          </label>
+                          <Input
+                            value={plan.name}
+                            onChange={(e) => updateInsurancePlan(index, 'name', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Plan Code
+                          </label>
+                          <Input
+                            value={plan.code}
+                            onChange={(e) => updateInsurancePlan(index, 'code', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Plan Type
+                          </label>
+                          <Select 
+                            value={plan.type} 
+                            onValueChange={(value) => updateInsurancePlan(index, 'type', value)}
+                            disabled={!isEditMode}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="HEALTH">Health</SelectItem>
+                              <SelectItem value="DENTAL">Dental</SelectItem>
+                              <SelectItem value="VISION">Vision</SelectItem>
+                              <SelectItem value="OTHER">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Group Number
+                          </label>
+                          <Input
+                            value={plan.group}
+                            onChange={(e) => updateInsurancePlan(index, 'group', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Policy Number
+                          </label>
+                          <Input
+                            value={planCoverage.policy_number}
+                            onChange={(e) => updateInsurancePlan(index, 'policy_number', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Insurance Company ID
+                          </label>
+                          <Input
+                            type="number"
+                            value={plan.insurance_plan_company_id || ''}
+                            onChange={(e) => updateInsurancePlan(index, 'insurance_plan_company_id', e.target.value ? parseInt(e.target.value) : undefined)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Checkbox Field */}
+                      <div className="pt-4 border-t border-gray-200">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`plan-include-cms-${index}`}
+                            checked={plan.include_cms}
+                            onCheckedChange={(checked) => updateInsurancePlan(index, 'include_cms', checked)}
+                            disabled={!isEditMode}
+                          />
+                          <Label 
+                            htmlFor={`plan-include-cms-${index}`} 
+                            className="text-sm font-medium text-gray-700 cursor-pointer"
+                          >
+                            Include in CMS Report
+                          </Label>
+                        </div>
+                      </div>
+                      
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Coverage Period</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Start Date
+                            </label>
+                            <p className="text-sm text-gray-600">
+                              {planCoverage.start_date ? new Date(planCoverage.start_date).toLocaleDateString() : 'N/A'}
+                            </p>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              End Date
+                            </label>
+                            <p className="text-sm text-gray-600">
+                              {planCoverage.end_date ? new Date(planCoverage.end_date).toLocaleDateString() : 'Active'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Notes Tab */}
+      {activeTab === 'notes' && (
+        <div className="grid gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Notes</CardTitle>
+              {isEditMode && (
+                <Button 
+                  onClick={addNote}
+                  size="sm"
+                  className="bg-union-600 hover:bg-union-700 text-white"
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  Add Note
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {formData.member_notes.length === 0 ? (
+                <p className="text-gray-500 text-sm">No notes found</p>
+              ) : (
+                formData.member_notes.map((note, index) => (
+                  <div key={note.id || index} className="border rounded-lg p-6 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-sm font-medium text-gray-900">
+                            Note #{index + 1}
+                          </h3>
+                          {note.created_at && (
+                            <span className="text-xs text-gray-500">
+                              {new Date(note.created_at).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Message
+                          </label>
+                          <Textarea
+                            value={note.message}
+                            onChange={(e) => updateNote(index, 'message', e.target.value)}
+                            disabled={!isEditMode}
+                            rows={4}
+                            className="resize-vertical"
+                          />
+                        </div>
+                      </div>
+                      
+                      {isEditMode && (
+                        <Button 
+                          onClick={() => removeNote(index)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-800 ml-4"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Placeholder for other tabs */}
-      {activeTab !== 'member' && activeTab !== 'life-insurance' && (
+      {activeTab !== 'member' && activeTab !== 'life-insurance' && activeTab !== 'dependents' && activeTab !== 'employers' && activeTab !== 'health-coverage' && activeTab !== 'notes' && (
         <Card>
           <CardContent className="p-12 text-center">
             <div className="text-gray-500">
