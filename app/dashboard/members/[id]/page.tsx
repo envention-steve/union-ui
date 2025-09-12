@@ -33,6 +33,230 @@ import {
 } from 'lucide-react';
 import { backendApiClient } from '@/lib/api-client';
 import { Member } from '@/types';
+import {
+  LedgerEntry as PolymorphicLedgerEntry,
+  getLedgerEntryTypeDisplayName,
+  isAdminFeeEntry,
+  isAnnuityPayoutEntry,
+  isManualAdjustmentEntry,
+  isClaimEntry,
+  isAccountContributionEntry,
+  isMemberContributionEntry,
+  isInsurancePremiumEntry,
+  isAnnuityUpdateEntry
+} from '@/types/ledger-entries';
+
+// Component to render type-specific ledger entry details
+const LedgerEntryExpandedDetails: React.FC<{ entry: PolymorphicLedgerEntry }> = ({ entry }) => {
+  const renderTypeSpecificDetails = () => {
+    if (isAdminFeeEntry(entry)) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="font-medium">Insurance Premium ID:</span> {entry.insurance_premium_id || 'N/A'}
+          </div>
+          <div>
+            <span className="font-medium">Insurance Premium Batch ID:</span> {entry.insurance_premium_batch_id || 'N/A'}
+          </div>
+        </div>
+      );
+    }
+
+    if (isAnnuityPayoutEntry(entry)) {
+      return (
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <span className="font-medium">Account Number:</span> {entry.account_number}
+            </div>
+            <div>
+              <span className="font-medium">Check Date:</span> {entry.check_date ? new Date(entry.check_date).toLocaleDateString() : 'N/A'}
+            </div>
+            <div>
+              <span className="font-medium">Check Number:</span> {entry.check_number || 'N/A'}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <span className="font-medium">Tax Rate:</span> {(entry.tax_rate * 100).toFixed(2)}%
+            </div>
+            <div>
+              <span className="font-medium">1099 Code:</span> {entry.code1099}
+            </div>
+            <div>
+              <span className="font-medium">Allow Overdraft:</span> {entry.allow_overdraft ? 'Yes' : 'No'}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <span className="font-medium">Use Member Info:</span> {entry.use_member_info ? 'Yes' : 'No'}
+            </div>
+            <div>
+              <span className="font-medium">Admin Fee:</span> {entry.admin_fee ? 'Yes' : 'No'}
+            </div>
+            <div>
+              <span className="font-medium">Admin Fee Amount:</span> ${entry.admin_fee_amount.toFixed(2)}
+            </div>
+          </div>
+          {(entry.tax_override_amount !== null || entry.company_id || entry.annuity_person_id) && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm pt-2 border-t border-gray-200">
+              {entry.tax_override_amount !== null && (
+                <div>
+                  <span className="font-medium">Tax Override Amount:</span> ${entry.tax_override_amount.toFixed(2)}
+                </div>
+              )}
+              {entry.company_id && (
+                <div>
+                  <span className="font-medium">Company ID:</span> {entry.company_id}
+                </div>
+              )}
+              {entry.annuity_person_id && (
+                <div>
+                  <span className="font-medium">Annuity Person ID:</span> {entry.annuity_person_id}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (isManualAdjustmentEntry(entry)) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="font-medium">Description:</span> {entry.description || 'N/A'}
+          </div>
+          <div>
+            <span className="font-medium">Allow Overdraft:</span> {entry.allow_overdraft ? 'Yes' : 'No'}
+          </div>
+        </div>
+      );
+    }
+
+    if (isClaimEntry(entry)) {
+      return (
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="font-medium">Description:</span> {entry.description || 'N/A'}
+            </div>
+            <div>
+              <span className="font-medium">Claim Type:</span> {entry.claim_type}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <span className="font-medium">Check Date:</span> {entry.check_date ? new Date(entry.check_date).toLocaleDateString() : 'N/A'}
+            </div>
+            <div>
+              <span className="font-medium">Check Number:</span> {entry.check_number || 'N/A'}
+            </div>
+            <div>
+              <span className="font-medium">Allow Overdraft:</span> {entry.allow_overdraft ? 'Yes' : 'No'}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (isAccountContributionEntry(entry)) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="font-medium">Description:</span> {entry.description || 'N/A'}
+          </div>
+          <div>
+            <span className="font-medium">Account Contribution Batch ID:</span> {entry.account_contribution_batch_id || 'N/A'}
+          </div>
+        </div>
+      );
+    }
+
+    if (isMemberContributionEntry(entry)) {
+      return (
+        <div className="grid grid-cols-1 gap-4 text-sm">
+          <div>
+            <span className="font-medium">Employer Contribution ID:</span> {entry.employer_contribution_id || 'N/A'}
+          </div>
+        </div>
+      );
+    }
+
+    if (isInsurancePremiumEntry(entry)) {
+      return (
+        <div className="grid grid-cols-1 gap-4 text-sm">
+          <div>
+            <span className="font-medium">Insurance Premium Batch ID:</span> {entry.insurance_premium_batch_id || 'N/A'}
+          </div>
+        </div>
+      );
+    }
+
+    if (isAnnuityUpdateEntry(entry)) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="font-medium">Year End Balance:</span> {entry.year_end_balance ? `$${entry.year_end_balance.toFixed(2)}` : 'N/A'}
+          </div>
+          <div>
+            <span className="font-medium">Annuity Interest ID:</span> {entry.annuity_interest_id || 'N/A'}
+          </div>
+        </div>
+      );
+    }
+
+    // Fallback for base ledger entries or unknown types
+    return (
+      <div className="text-sm text-gray-500">
+        No additional details available for this entry type.
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <h4 className="font-medium text-gray-900 flex items-center gap-2">
+        <span>Entry Details</span>
+        <Badge variant="outline" className="text-xs">
+          {getLedgerEntryTypeDisplayName(entry.type)}
+        </Badge>
+      </h4>
+      
+      {/* Common fields */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm bg-gray-50 p-3 rounded">
+        <div>
+          <span className="font-medium">Posted:</span> {entry.posted ? 'Yes' : 'No'}
+        </div>
+        <div>
+          <span className="font-medium">Suspended:</span> {entry.suspended ? 'Yes' : 'No'}
+        </div>
+        <div>
+          <span className="font-medium">Account ID:</span> {entry.account_id}
+        </div>
+        <div>
+          <span className="font-medium">Entry ID:</span> {entry.id}
+        </div>
+      </div>
+
+      {/* Type-specific details */}
+      <div className="pt-2">
+        <h5 className="font-medium text-gray-800 mb-3">Type-Specific Information</h5>
+        {renderTypeSpecificDetails()}
+      </div>
+
+      {/* Timestamps */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-500 pt-2 border-t border-gray-200">
+        <div>
+          <span className="font-medium">Created:</span> {new Date(entry.created_at).toLocaleString()}
+        </div>
+        <div>
+          <span className="font-medium">Updated:</span> {new Date(entry.updated_at).toLocaleString()}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface Address {
   id?: string;
@@ -74,34 +298,41 @@ interface MemberStatus {
 }
 
 interface Coverage {
-  id?: number;
-  status: string;
+  id: number;
+  created_at: string;
+  updated_at: string;
   start_date: string;
   end_date?: string;
+  member_id: number;
 }
 
 interface Dependent {
   id?: number;
   first_name: string;
-  middle_name?: string;
   last_name: string;
+  middle_name?: string;
   suffix?: string;
-  ssn?: string;
-  birth_date: string;
+  phone?: string;
+  email?: string;
   gender?: 'MALE' | 'FEMALE' | 'OTHER';
-  dependent_type: 'SPOUSE' | 'DEPENDENT' | 'CHILD';
+  birth_date?: string;
+  created_at?: string;
+  updated_at?: string;
+  dependent_type: string;
   include_cms: boolean;
+  marriage_date?: string;
+  marriage_certificate?: boolean;
 }
 
 interface DependentCoverage {
   id?: number;
+  created_at?: string;
+  updated_at?: string;
   start_date: string;
   end_date?: string;
   member_id: number;
   dependent_id: number;
-  dependent: Dependent;
-  created_at?: string;
-  updated_at?: string;
+  dependent?: Dependent;
 }
 
 interface Employer {
@@ -203,13 +434,32 @@ interface LifeInsuranceCoverage extends Coverage {
   life_insurance_person_id?: number;
 }
 
-interface MemberFormData extends Member {
+interface MemberFormData {
+  id: number;
+  first_name: string;
+  last_name: string;
+  middle_name?: string;
+  suffix?: string;
+  phone?: string;
+  email?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  birth_date?: string;
+  deceased: boolean;
+  deceased_date?: string;
+  is_forced_distribution: boolean;
+  force_distribution_class_id?: number;
+  unique_id: string;
+  disabled_waiver: boolean;
+  care_of?: string;
+  include_cms: boolean;
+  created_at?: string;
+  updated_at?: string;
   addresses: Address[];
   phoneNumbers: PhoneNumber[];
   emailAddresses: EmailAddress[];
-  distribution_class_coverages: Coverage[];
-  member_status_coverages: Coverage[];
-  life_insurance_coverages: Coverage[];
+  distribution_class_coverages: DistributionClassCoverage[];
+  member_status_coverages: MemberStatusCoverage[];
+  life_insurance_coverages: LifeInsuranceCoverage[];
   dependent_coverages: DependentCoverage[];
   employer_coverages: EmployerCoverage[];
   insurance_plan_coverages: InsurancePlanCoverage[];
@@ -318,7 +568,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       setLoading(true);
       setError(null);
       
-      const response = await backendApiClient.members.getDetails(resolvedParams.id);
+      const response = await backendApiClient.members.getDetails!(resolvedParams.id);
       
       // Transform API response to form data structure
       const memberData: MemberFormData = {
@@ -495,11 +745,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       dependent_id: 0, // Will be set by API
       dependent: {
         first_name: '',
-        middle_name: '',
         last_name: '',
-        ssn: '',
-        birth_date: '',
-        gender: undefined,
         dependent_type: 'DEPENDENT',
         include_cms: false,
       }
@@ -528,11 +774,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
               dependent: {
                 ...depCoverage.dependent,
                 [field]: value
-              }
+              } as Dependent
             }
           : depCoverage
       )
-    }));
+    }) as MemberFormData);
   };
 
   const addEmployer = () => {
@@ -692,7 +938,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         params.end_date = endDateFilter;
       }
       
-      const response = await backendApiClient.members.getLedgerEntries(resolvedParams.id, params);
+      const response = await backendApiClient.members.getLedgerEntries!(resolvedParams.id, params);
       
       setLedgerEntries(response.items);
       setLedgerTotalEntries(response.total);
@@ -1459,11 +1705,13 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
           <CoverageList 
             title="Distribution Class Coverages" 
             coverages={formData.distribution_class_coverages} 
+            type="distribution_class"
           />
           
           <CoverageList 
             title="Member Status Coverages" 
             coverages={formData.member_status_coverages} 
+            type="member_status"
           />
         </div>
       )}
@@ -1474,6 +1722,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
           <CoverageList 
             title="Life Insurance Coverages" 
             coverages={formData.life_insurance_coverages} 
+            type="life_insurance"
           />
         </div>
       )}
@@ -1501,6 +1750,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
               ) : (
                 formData.dependent_coverages.map((dependentCoverage, index) => {
                   const dependent = dependentCoverage.dependent;
+                  if (!dependent) return null;
                   return (
                     <div key={dependentCoverage.id || index} className="border rounded-lg p-6 space-y-4">
                       <div className="flex items-center justify-between">
@@ -1553,17 +1803,6 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                           />
                         </div>
                         
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            SSN
-                          </label>
-                          <Input
-                            value={dependent.ssn || ''}
-                            onChange={(e) => updateDependent(index, 'ssn', e.target.value)}
-                            disabled={!isEditMode}
-                            placeholder="xxx-xx-xxxx"
-                          />
-                        </div>
                         
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2292,7 +2531,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                               <TableCell>
                                 {entry.posted_date ? new Date(entry.posted_date).toLocaleDateString() : 'N/A'}
                               </TableCell>
-                              <TableCell>{entry.type}</TableCell>
+                              <TableCell>{getLedgerEntryTypeDisplayName(entry.type)}</TableCell>
                               <TableCell>
                                 {/* TODO: This should come from related data */}
                                 2026-07-31
@@ -2317,30 +2556,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                             {isExpanded && (
                               <TableRow>
                                 <TableCell colSpan={6} className="bg-gray-50 p-6">
-                                  <div className="space-y-2">
-                                    <h4 className="font-medium text-gray-900">Entry Details</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                      <div>
-                                        <span className="font-medium">Posted:</span> {entry.posted ? 'Yes' : 'No'}
-                                      </div>
-                                      <div>
-                                        <span className="font-medium">Suspended:</span> {entry.suspended ? 'Yes' : 'No'}
-                                      </div>
-                                      <div>
-                                        <span className="font-medium">Account ID:</span> {entry.account_id}
-                                      </div>
-                                      <div>
-                                        <span className="font-medium">Entry ID:</span> {entry.id}
-                                      </div>
-                                    </div>
-                                    {/* TODO: Add specific entry type details based on entry.type */}
-                                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                                      <p className="text-sm text-yellow-800">
-                                        <strong>Note:</strong> Detailed entry information (like insurance plan details, employer info, etc.) 
-                                        will be implemented once the API provides the related data structure.
-                                      </p>
-                                    </div>
-                                  </div>
+                                  <LedgerEntryExpandedDetails entry={entry as PolymorphicLedgerEntry} />
                                 </TableCell>
                               </TableRow>
                             )}

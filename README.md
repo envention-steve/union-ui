@@ -2,6 +2,14 @@
 
 A modern web application for managing union benefits, built with Next.js 15, TypeScript, and shadcn/ui components.
 
+## Warp AI Guidelines
+
+**For AI agents working on this project:**
+- 🚫 DO NOT automatically run development servers (`npm run dev`)
+- 👤 User manages server lifecycle manually
+- ✅ Use build validation (`npm run build`) for testing changes only when requested
+- 🎯 Focus on code implementation rather than server management
+
 ## Features
 
 - 🔐 **Authentication System** - Secure login with JWT tokens

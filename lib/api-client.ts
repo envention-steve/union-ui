@@ -8,6 +8,15 @@ interface AuthEndpoints {
 interface BusinessEndpoints {
   list: (params?: { page?: number; limit?: number; search?: string; category?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
   get: (id: string) => Promise<any>;
+  getDetails?: (id: string) => Promise<any>;
+  getLedgerEntries?: (id: string, params?: {
+    offset?: number;
+    limit?: number;
+    account_type?: 'HEALTH' | 'ANNUITY';
+    entry_type?: string;
+    start_date?: string;
+    end_date?: string;
+  }) => Promise<{ items: any[]; total: number; offset: number; limit: number }>;
   create: (data: any) => Promise<any>;
   update: (id: string, data: any) => Promise<any>;
   delete: (id: string) => Promise<{ message: string }>;

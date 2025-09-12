@@ -1,0 +1,16 @@
+# Warp AI Rules for this project
+
+## Development Server Management
+- DO NOT automatically run `npm run dev` or start development servers
+- DO NOT run servers after making code changes
+- User will manually start/stop servers as needed
+- Only run build commands (`npm run build`) for validation when requested
+
+## Code Changes
+- Focus on code implementation and testing compilation
+- Use `npm run build` to validate changes when appropriate
+- Suggest manual server restart if needed, but don't execute it
+
+## Testing
+- Only run tests when explicitly requested
+- Prefer build validation over running development servers
