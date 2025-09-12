@@ -167,6 +167,9 @@ class AuthenticatedBackendApiClient extends ApiClient {
   members!: BusinessEndpoints;
   plans!: BusinessEndpoints;
   dashboard!: DashboardEndpoints;
+  ledgerEntries!: {
+    getTypes: () => Promise<{ value: string; label: string; }[]>;
+  };
 
   constructor(baseURL: string) {
     super(baseURL);
@@ -374,6 +377,36 @@ class AuthenticatedBackendApiClient extends ApiClient {
       
       delete: (id: string) =>
         this.delete<any>(`/api/v1/members/${id}`),
+      
+      getLedgerEntries: async (id: string, params?: {
+        offset?: number;
+        limit?: number;
+        account_type?: 'HEALTH' | 'ANNUITY';
+        entry_type?: string;
+        start_date?: string;
+        end_date?: string;
+      }) => {
+        const queryParams: Record<string, any> = {};
+        
+        if (params?.offset !== undefined) queryParams.offset = params.offset;
+        if (params?.limit !== undefined) queryParams.limit = params.limit;
+        if (params?.account_type) queryParams.account_type = params.account_type;
+        if (params?.entry_type) queryParams.entry_type = params.entry_type;
+        if (params?.start_date) queryParams.start_date = params.start_date;
+        if (params?.end_date) queryParams.end_date = params.end_date;
+        
+        const response = await this.get<any[]>(`/api/v1/members/${id}/ledger_entries`, queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+        
+        return {
+          items: response,
+          total,
+          offset: params?.offset || 0,
+          limit: params?.limit || 25
+        };
+      },
     };
 
     this.plans = {
@@ -405,6 +438,11 @@ class AuthenticatedBackendApiClient extends ApiClient {
           claimsTrend: number;
           premiumsTrend: number;
         }>('/api/v1/dashboard/stats'),
+    };
+    
+    this.ledgerEntries = {
+      getTypes: () =>
+        this.get<{ value: string; label: string; }[]>('/api/v1/ledger_entries/types'),
     };
   }
   

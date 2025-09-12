@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, use } from 'react';
+import React, { useState, useEffect, useCallback, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -24,7 +25,11 @@ import {
   Briefcase,
   ClipboardList,
   CircleDollarSign,
-  Folder
+  Folder,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
+  Filter
 } from 'lucide-react';
 import { backendApiClient } from '@/lib/api-client';
 import { Member } from '@/types';
@@ -154,6 +159,34 @@ interface MemberNote {
   updated_at?: string;
 }
 
+interface FundBalance {
+  health_balance: number;
+  annuity_balance: number;
+  last_updated: string;
+}
+
+interface LedgerEntry {
+  id: number;
+  account_id: number;
+  member_id: number;
+  type: string;
+  amount: number;
+  posted_date: string;
+  posted: boolean;
+  suspended: boolean;
+  created_at: string;
+  updated_at: string;
+  account?: {
+    id: number;
+    type: 'HEALTH' | 'ANNUITY';
+  };
+}
+
+interface LedgerEntryType {
+  value: string;
+  label: string;
+}
+
 interface DistributionClassCoverage extends Coverage {
   distribution_class_id: number;
   distribution_class?: DistributionClass;
@@ -181,6 +214,7 @@ interface MemberFormData extends Member {
   employer_coverages: EmployerCoverage[];
   insurance_plan_coverages: InsurancePlanCoverage[];
   member_notes: MemberNote[];
+  fund_balances?: FundBalance;
 }
 
 const TABS = [
@@ -207,6 +241,23 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Fund Ledger state
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
+  const [ledgerTotalEntries, setLedgerTotalEntries] = useState(0);
+  const [ledgerCurrentPage, setLedgerCurrentPage] = useState(1);
+  const [ledgerItemsPerPage, setLedgerItemsPerPage] = useState(25);
+  const [expandedEntries, setExpandedEntries] = useState<Set<number>>(new Set());
+  const [ledgerEntryTypes, setLedgerEntryTypes] = useState<LedgerEntryType[]>([]);
+  
+  // Fund Ledger filters
+  const [accountTypeFilter, setAccountTypeFilter] = useState<string>('all');
+  const [entryTypeFilter, setEntryTypeFilter] = useState<string>('all');
+  const [startDateFilter, setStartDateFilter] = useState<string>('');
+  const [endDateFilter, setEndDateFilter] = useState<string>('');
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
   
   const [originalData, setOriginalData] = useState<MemberFormData | null>(null);
   const [formData, setFormData] = useState<MemberFormData>({
@@ -284,6 +335,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         employer_coverages: response.employer_coverages || [],
         insurance_plan_coverages: response.insurance_plan_coverages || [],
         member_notes: response.member_notes || [],
+        fund_balances: response.fund_balances,
       };
       
       setFormData(memberData);
@@ -612,6 +664,125 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       )
     }));
   };
+
+  // Fund Ledger functions
+  const fetchLedgerEntries = useCallback(async () => {
+    if (activeTab !== 'fund-ledger') return;
+    
+    try {
+      setLedgerLoading(true);
+      setLedgerError(null);
+      
+      const params: any = {
+        offset: (ledgerCurrentPage - 1) * ledgerItemsPerPage,
+        limit: ledgerItemsPerPage,
+      };
+      
+      if (accountTypeFilter !== 'all') {
+        params.account_type = accountTypeFilter.toUpperCase();
+      }
+      
+      if (entryTypeFilter !== 'all') {
+        params.entry_type = entryTypeFilter;
+      }
+      
+      if (startDateFilter) {
+        params.start_date = startDateFilter;
+      }
+      
+      if (endDateFilter) {
+        params.end_date = endDateFilter;
+      }
+      
+      const response = await backendApiClient.members.getLedgerEntries(resolvedParams.id, params);
+      
+      setLedgerEntries(response.items);
+      setLedgerTotalEntries(response.total);
+    } catch (err) {
+      console.error('Error fetching ledger entries:', err);
+      setLedgerError('Failed to load ledger entries. Please try again.');
+      setLedgerEntries([]);
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, [resolvedParams.id, activeTab, ledgerCurrentPage, ledgerItemsPerPage, accountTypeFilter, entryTypeFilter, startDateFilter, endDateFilter]);
+  
+  const fetchLedgerEntryTypes = useCallback(async () => {
+    try {
+      const types = await backendApiClient.ledgerEntries.getTypes();
+      setLedgerEntryTypes(types);
+    } catch (err) {
+      console.error('Error fetching ledger entry types:', err);
+    }
+  }, []);
+  
+  const toggleEntryExpansion = (entryId: number) => {
+    setExpandedEntries(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(entryId)) {
+        newSet.delete(entryId);
+      } else {
+        newSet.add(entryId);
+      }
+      return newSet;
+    });
+  };
+  
+  const handleDateRangeChange = (range: string) => {
+    setDateRangeFilter(range);
+    
+    const now = new Date();
+    let start = '';
+    let end = '';
+    
+    switch (range) {
+      case 'this-month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        break;
+      case 'last-month':
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+        end = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+        break;
+      case 'this-year':
+        start = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+        end = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
+        break;
+      case 'last-year':
+        start = new Date(now.getFullYear() - 1, 0, 1).toISOString().split('T')[0];
+        end = new Date(now.getFullYear() - 1, 11, 31).toISOString().split('T')[0];
+        break;
+      default:
+        start = '';
+        end = '';
+    }
+    
+    setStartDateFilter(start);
+    setEndDateFilter(end);
+    setLedgerCurrentPage(1); // Reset to first page
+  };
+  
+  const handleFilterChange = () => {
+    setLedgerCurrentPage(1); // Reset to first page when filters change
+  };
+  
+  // Fetch ledger entries when filters or pagination changes
+  useEffect(() => {
+    fetchLedgerEntries();
+  }, [fetchLedgerEntries]);
+  
+  // Fetch ledger entry types on component mount
+  useEffect(() => {
+    fetchLedgerEntryTypes();
+  }, [fetchLedgerEntryTypes]);
+  
+  // Reset filters when changing to fund ledger tab
+  useEffect(() => {
+    if (activeTab === 'fund-ledger') {
+      setLedgerCurrentPage(1);
+      setExpandedEntries(new Set());
+    }
+  }, [activeTab]);
 
   // Coverage display component
   const CoverageList = ({ 
@@ -1034,7 +1205,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                 <p className="text-gray-500 text-sm">No addresses added</p>
               ) : (
                 formData.addresses.map((address, index) => (
-                  <div key={index} className="border rounded-lg p-4 space-y-3">
+                  <div key={`address-${index}-${address.type}-${address.street1}`} className="border rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -1152,7 +1323,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                 <p className="text-gray-500 text-sm">No phone numbers added</p>
               ) : (
                 formData.phoneNumbers.map((phone, index) => (
-                  <div key={index} className="flex items-center gap-4">
+                  <div key={`phone-${index}-${phone.type}-${phone.number}`} className="flex items-center gap-4">
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1235,7 +1406,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                 <p className="text-gray-500 text-sm">No email addresses added</p>
               ) : (
                 formData.emailAddresses.map((email, index) => (
-                  <div key={index} className="flex items-center gap-4">
+                  <div key={`email-${index}-${email.type}-${email.email}`} className="flex items-center gap-4">
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1873,8 +2044,380 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
+      {/* Fund Ledger Tab */}
+      {activeTab === 'fund-ledger' && (
+        <div className="space-y-6">
+          {/* Fund Balance Cards */}
+          {formData.fund_balances && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-green-700">Health Account</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-green-600">
+                    ${formData.fund_balances.health_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Last updated: {new Date(formData.fund_balances.last_updated).toLocaleString()}
+                  </p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-blue-700">Annuity Account</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-blue-600">
+                    ${formData.fund_balances.annuity_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Last updated: {new Date(formData.fund_balances.last_updated).toLocaleString()}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+          
+          {/* Filters and Controls */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filters & Controls
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Items per page */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Show
+                  </label>
+                  <Select 
+                    value={ledgerItemsPerPage.toString()} 
+                    onValueChange={(value) => {
+                      setLedgerItemsPerPage(parseInt(value));
+                      handleFilterChange();
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Account Type Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Account Type
+                  </label>
+                  <Select 
+                    value={accountTypeFilter} 
+                    onValueChange={(value) => {
+                      setAccountTypeFilter(value);
+                      handleFilterChange();
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Accounts</SelectItem>
+                      <SelectItem value="health">Health</SelectItem>
+                      <SelectItem value="annuity">Annuity</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Entry Type Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Entry Type
+                  </label>
+                  <Select 
+                    value={entryTypeFilter} 
+                    onValueChange={(value) => {
+                      setEntryTypeFilter(value);
+                      handleFilterChange();
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      {(ledgerEntryTypes || []).map((type, index) => (
+                        <SelectItem key={type.value || `entry-type-${index}`} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Date Range Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date Range
+                  </label>
+                  <Select 
+                    value={dateRangeFilter} 
+                    onValueChange={handleDateRangeChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Dates</SelectItem>
+                      <SelectItem value="this-month">This Month</SelectItem>
+                      <SelectItem value="last-month">Last Month</SelectItem>
+                      <SelectItem value="this-year">This Year</SelectItem>
+                      <SelectItem value="last-year">Last Year</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              {/* Custom Date Range */}
+              {dateRangeFilter === 'all' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Start Date
+                    </label>
+                    <Input
+                      type="date"
+                      value={startDateFilter}
+                      onChange={(e) => {
+                        setStartDateFilter(e.target.value);
+                        handleFilterChange();
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      End Date
+                    </label>
+                    <Input
+                      type="date"
+                      value={endDateFilter}
+                      onChange={(e) => {
+                        setEndDateFilter(e.target.value);
+                        handleFilterChange();
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Ledger Entries Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">
+                Ledger Entries ({ledgerLoading ? '...' : ledgerTotalEntries})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {ledgerError && (
+                <div className="p-6 text-center text-red-600">
+                  <p>{ledgerError}</p>
+                  <Button 
+                    onClick={fetchLedgerEntries} 
+                    className="mt-4 bg-union-600 hover:bg-union-700 text-white"
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              )}
+              
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Transaction Type</TableHead>
+                      <TableHead>Period Year End</TableHead>
+                      <TableHead className="text-right">Health</TableHead>
+                      <TableHead className="text-right">Annuity</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ledgerLoading ? (
+                      // Loading skeleton rows
+                      Array.from({ length: 5 }, (_, i) => (
+                        <TableRow key={`loading-${i}`}>
+                          <TableCell><div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                          <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div></TableCell>
+                          <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div></TableCell>
+                          <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div></TableCell>
+                          <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-16 ml-auto"></div></TableCell>
+                          <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-16 ml-auto"></div></TableCell>
+                        </TableRow>
+                      ))
+                    ) : ledgerEntries.length === 0 ? (
+                      // Empty state
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          No ledger entries found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      // Ledger entry rows
+                      (ledgerEntries || []).map((entry) => {
+                        const isExpanded = expandedEntries.has(entry.id);
+                        const isHealth = entry.account?.type === 'HEALTH';
+                        const isAnnuity = entry.account?.type === 'ANNUITY';
+                        
+                        return (
+                          <React.Fragment key={entry.id}>
+                            <TableRow className="cursor-pointer hover:bg-gray-50" onClick={() => toggleEntryExpansion(entry.id)}>
+                              <TableCell>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TableCell>
+                              <TableCell>
+                                {entry.posted_date ? new Date(entry.posted_date).toLocaleDateString() : 'N/A'}
+                              </TableCell>
+                              <TableCell>{entry.type}</TableCell>
+                              <TableCell>
+                                {/* TODO: This should come from related data */}
+                                2026-07-31
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {isHealth ? (
+                                  <span className={entry.amount < 0 ? 'text-red-600' : 'text-green-600'}>
+                                    ${entry.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                ) : ''}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {isAnnuity ? (
+                                  <span className={entry.amount < 0 ? 'text-red-600' : 'text-green-600'}>
+                                    ${entry.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                ) : ''}
+                              </TableCell>
+                            </TableRow>
+                            
+                            {/* Expanded detail row */}
+                            {isExpanded && (
+                              <TableRow>
+                                <TableCell colSpan={6} className="bg-gray-50 p-6">
+                                  <div className="space-y-2">
+                                    <h4 className="font-medium text-gray-900">Entry Details</h4>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                      <div>
+                                        <span className="font-medium">Posted:</span> {entry.posted ? 'Yes' : 'No'}
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">Suspended:</span> {entry.suspended ? 'Yes' : 'No'}
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">Account ID:</span> {entry.account_id}
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">Entry ID:</span> {entry.id}
+                                      </div>
+                                    </div>
+                                    {/* TODO: Add specific entry type details based on entry.type */}
+                                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                                      <p className="text-sm text-yellow-800">
+                                        <strong>Note:</strong> Detailed entry information (like insurance plan details, employer info, etc.) 
+                                        will be implemented once the API provides the related data structure.
+                                      </p>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Pagination */}
+          {!ledgerLoading && ledgerTotalEntries > 0 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Showing {((ledgerCurrentPage - 1) * ledgerItemsPerPage) + 1} to {Math.min(ledgerCurrentPage * ledgerItemsPerPage, ledgerTotalEntries)} of {ledgerTotalEntries} entries
+              </p>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLedgerCurrentPage(ledgerCurrentPage - 1)}
+                  disabled={ledgerCurrentPage === 1 || ledgerLoading}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(5, Math.ceil(ledgerTotalEntries / ledgerItemsPerPage)) }, (_, i) => {
+                    const totalPages = Math.ceil(ledgerTotalEntries / ledgerItemsPerPage);
+                    let page;
+                    if (totalPages <= 5) {
+                      page = i + 1;
+                    } else {
+                      const start = Math.max(1, ledgerCurrentPage - 2);
+                      const end = Math.min(totalPages, start + 4);
+                      page = start + i;
+                      if (page > end) return null;
+                    }
+                    
+                    return (
+                      <Button
+                        key={page}
+                        variant={ledgerCurrentPage === page ? "default" : "outline"}
+                        size="sm"
+                        className={ledgerCurrentPage === page ? "bg-union-600 hover:bg-union-700" : ""}
+                        onClick={() => setLedgerCurrentPage(page)}
+                        disabled={ledgerLoading}
+                      >
+                        {page}
+                      </Button>
+                    );
+                  }).filter(Boolean)}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLedgerCurrentPage(ledgerCurrentPage + 1)}
+                  disabled={ledgerCurrentPage >= Math.ceil(ledgerTotalEntries / ledgerItemsPerPage) || ledgerLoading}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Placeholder for other tabs */}
-      {activeTab !== 'member' && activeTab !== 'life-insurance' && activeTab !== 'dependents' && activeTab !== 'employers' && activeTab !== 'health-coverage' && activeTab !== 'notes' && (
+      {activeTab !== 'member' && activeTab !== 'life-insurance' && activeTab !== 'dependents' && activeTab !== 'employers' && activeTab !== 'health-coverage' && activeTab !== 'notes' && activeTab !== 'fund-ledger' && (
         <Card>
           <CardContent className="p-12 text-center">
             <div className="text-gray-500">
