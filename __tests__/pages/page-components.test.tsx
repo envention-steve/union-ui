@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import HomePage from '@/app/page'
 import LoginPage from '@/app/(auth)/login/page'
-import DashboardPage from '@/app/(dashboard)/page'
+import DashboardPage from '@/app/dashboard/page'
 import { useAuthStore } from '@/store/auth-store'
 
 // Mock Next.js navigation
@@ -205,7 +205,7 @@ describe('Page Components', () => {
       mockUseAuthStore.mockReturnValue({
         isAuthenticated: true,
         checkAuth: mockCheckAuth,
-        user: { full_name: 'Test User' },
+        user: { name: 'Test User' },
       } as any)
       
       render(<LoginPage />)
@@ -243,7 +243,7 @@ describe('Page Components', () => {
       mockUseAuthStore.mockReturnValue({
         isAuthenticated: true,
         checkAuth: mockCheckAuth,
-        user: { full_name: 'Test User' },
+        user: { name: 'Test User' },
       } as any)
       
       const { container } = render(<LoginPage />)
@@ -285,7 +285,7 @@ describe('Page Components', () => {
     beforeEach(() => {
       mockUseAuthStore.mockReturnValue({
         user: {
-          full_name: 'John Doe',
+          name: 'John Doe',
           email: 'john.doe@union.org',
         },
         isAuthenticated: true,
@@ -303,7 +303,7 @@ describe('Page Components', () => {
       mockUseAuthStore.mockReturnValue({
         user: {
           email: 'user@union.org',
-          full_name: null,
+          name: null,
         },
         isAuthenticated: true,
       } as any)
@@ -410,7 +410,7 @@ describe('Page Components', () => {
       mockUseAuthStore.mockReturnValue({
         isAuthenticated: true,
         checkAuth: jest.fn(),
-        user: { full_name: 'Test User' },
+        user: { name: 'Test User' },
       } as any)
       
       render(<LoginPage />)
@@ -460,7 +460,7 @@ describe('Page Components', () => {
     it('should have proper heading hierarchy on DashboardPage', () => {
       mockUseAuthStore.mockReturnValue({
         user: {
-          full_name: 'John Doe',
+          name: 'John Doe',
           email: 'john.doe@union.org',
         },
         isAuthenticated: true,

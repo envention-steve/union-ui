@@ -215,7 +215,7 @@ describe('LoginForm Component', () => {
       await user.click(submitButton);
       
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith('/dashboard');
+        expect(mockPush).toHaveBeenCalledWith('/dashboard/members');
       });
     });
 
@@ -478,7 +478,7 @@ describe('LoginForm Component', () => {
           email: 'integration@test.com',
           password: 'testpassword',
         });
-        expect(mockPush).toHaveBeenCalledWith('/dashboard');
+        expect(mockPush).toHaveBeenCalledWith('/dashboard/members');
       });
     });
 

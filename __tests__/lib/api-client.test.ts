@@ -351,10 +351,20 @@ describe('ApiClient', () => {
           limit: 10,
         };
 
+        // Mock auth token endpoint (fallback)
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          headers: new Map([['content-type', 'application/json']]),
+          json: async () => ({}),
+        });
+        
+        // Mock main request
         mockFetch.mockResolvedValueOnce({
           ok: true,
-          headers: new Map([['content-type', 'application/json']]),
-          json: async () => mockResponse,
+          status: 200,
+          headers: new Map([['content-type', 'application/json'], ['X-Total-Count', '1']]),
+          json: async () => [{ id: '1', name: 'Health Insurance' }],
         });
 
         const params = { page: 1, limit: 10, search: 'health', category: 'health' };
@@ -370,8 +380,17 @@ describe('ApiClient', () => {
       it('should get a specific benefit', async () => {
         const mockBenefit = { id: '1', name: 'Health Insurance', description: 'Comprehensive health coverage' };
 
+        // Mock auth token endpoint (fallback)
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          headers: new Map([['content-type', 'application/json']]),
+          json: async () => ({}),
+        });
+        
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          status: 200,
           headers: new Map([['content-type', 'application/json']]),
           json: async () => mockBenefit,
         });
@@ -389,8 +408,17 @@ describe('ApiClient', () => {
         const newBenefit = { name: 'Dental Insurance', category: 'dental', monthly_premium: 50 };
         const mockResponse = { id: '2', ...newBenefit };
 
+        // Mock auth token endpoint (fallback)
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          headers: new Map([['content-type', 'application/json']]),
+          json: async () => ({}),
+        });
+        
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          status: 201,
           headers: new Map([['content-type', 'application/json']]),
           json: async () => mockResponse,
         });
@@ -411,8 +439,17 @@ describe('ApiClient', () => {
         const updateData = { monthly_premium: 60 };
         const mockResponse = { id: '1', ...updateData };
 
+        // Mock auth token endpoint (fallback)
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          headers: new Map([['content-type', 'application/json']]),
+          json: async () => ({}),
+        });
+        
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          status: 200,
           headers: new Map([['content-type', 'application/json']]),
           json: async () => mockResponse,
         });
@@ -432,8 +469,17 @@ describe('ApiClient', () => {
       it('should delete a benefit', async () => {
         const mockResponse = { message: 'Benefit deleted successfully' };
 
+        // Mock auth token endpoint (fallback)
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          headers: new Map([['content-type', 'application/json']]),
+          json: async () => ({}),
+        });
+        
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          status: 200,
           headers: new Map([['content-type', 'application/json']]),
           json: async () => mockResponse,
         });
@@ -457,10 +503,19 @@ describe('ApiClient', () => {
           limit: 10,
         };
 
+        // Mock auth token endpoint (fallback)
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          headers: new Map([['content-type', 'application/json']]),
+          json: async () => ({}),
+        });
+        
         mockFetch.mockResolvedValueOnce({
           ok: true,
-          headers: new Map([['content-type', 'application/json']]),
-          json: async () => mockResponse,
+          status: 200,
+          headers: new Map([['content-type', 'application/json'], ['X-Total-Count', '1']]),
+          json: async () => [{ id: '1', user_id: '1', member_number: 'M001' }],
         });
 
         const result = await backendApiClient.members.list();
@@ -469,14 +524,29 @@ describe('ApiClient', () => {
           expect.stringContaining('/api/v1/members'),
           expect.objectContaining({ method: 'GET' })
         );
-        expect(result).toEqual(mockResponse);
+        expect(result).toEqual({
+          items: [{ id: '1', user_id: '1', member_number: 'M001' }],
+          total: 1,
+          page: 1,
+          limit: 25
+        });
       });
 
       it('should handle CRUD operations for members', async () => {
         // Get member
         const mockMember = { id: '1', member_number: 'M001' };
+        
+        // Mock auth token endpoint (fallback) for first request
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          headers: new Map([['content-type', 'application/json']]),
+          json: async () => ({}),
+        });
+        
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          status: 200,
           headers: new Map([['content-type', 'application/json']]),
           json: async () => mockMember,
         });
@@ -489,8 +559,18 @@ describe('ApiClient', () => {
 
         // Create member
         const newMember = { user_id: '2', employment_status: 'active' };
+        
+        // Mock auth token endpoint (fallback) for second request
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          headers: new Map([['content-type', 'application/json']]),
+          json: async () => ({}),
+        });
+        
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          status: 201,
           headers: new Map([['content-type', 'application/json']]),
           json: async () => ({ id: '2', ...newMember }),
         });
@@ -510,8 +590,17 @@ describe('ApiClient', () => {
       it('should handle plan operations', async () => {
         const mockPlan = { id: '1', name: 'Basic Plan', plan_type: 'individual' };
         
+        // Mock auth token endpoint (fallback)
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          headers: new Map([['content-type', 'application/json']]),
+          json: async () => ({}),
+        });
+        
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          status: 200,
           headers: new Map([['content-type', 'application/json']]),
           json: async () => mockPlan,
         });
@@ -539,8 +628,17 @@ describe('ApiClient', () => {
           premiumsTrend: 8.7,
         };
 
+        // Mock auth token endpoint (fallback)
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          headers: new Map([['content-type', 'application/json']]),
+          json: async () => ({}),
+        });
+        
         mockFetch.mockResolvedValueOnce({
           ok: true,
+          status: 200,
           headers: new Map([['content-type', 'application/json']]),
           json: async () => mockStats,
         });
