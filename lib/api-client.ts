@@ -316,8 +316,39 @@ class AuthenticatedBackendApiClient extends ApiClient {
   // Initialize endpoints
   initializeEndpoints() {
     this.benefits = {
-      list: (params?: { page?: number; limit?: number; search?: string; category?: string }) =>
-        this.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/benefits', params),
+      list: async (params?: { page?: number; limit?: number; search?: string; category?: string }) => {
+        const queryParams: Record<string, any> = {};
+        
+        // Handle pagination - FastAPI uses skip/limit instead of page
+        if (params?.page !== undefined && params?.limit !== undefined) {
+          queryParams.skip = (params.page - 1) * params.limit;
+          queryParams.limit = params.limit;
+        } else {
+          queryParams.limit = 25; // Default limit
+        }
+        
+        // Add other params
+        if (params?.search) {
+          queryParams.search = params.search;
+        }
+        
+        if (params?.category) {
+          queryParams.category = params.category;
+        }
+        
+        const response = await this.get<any[]>('/api/v1/benefits', queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        
+        // Extract pagination info from headers
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+        
+        return {
+          items: response,
+          total,
+          page: params?.page || 1,
+          limit: params?.limit || 25
+        };
+      },
       
       get: (id: string) =>
         this.get<any>(`/api/v1/benefits/${id}`),
@@ -336,9 +367,9 @@ class AuthenticatedBackendApiClient extends ApiClient {
       list: async (params?: { page?: number; limit?: number; search?: string }) => {
         const queryParams: Record<string, any> = {};
         
-        // Handle pagination - FastAPI uses offset/limit instead of page
+        // Handle pagination - FastAPI uses skip/limit instead of page
         if (params?.page !== undefined && params?.limit !== undefined) {
-          queryParams.offset = (params.page - 1) * params.limit;
+          queryParams.skip = (params.page - 1) * params.limit;
           queryParams.limit = params.limit;
         } else {
           queryParams.limit = 25; // Default limit
@@ -388,7 +419,7 @@ class AuthenticatedBackendApiClient extends ApiClient {
       }) => {
         const queryParams: Record<string, any> = {};
         
-        if (params?.offset !== undefined) queryParams.offset = params.offset;
+        if (params?.offset !== undefined) queryParams.skip = params.offset;
         if (params?.limit !== undefined) queryParams.limit = params.limit;
         if (params?.account_type) queryParams.account_type = params.account_type;
         if (params?.entry_type) queryParams.entry_type = params.entry_type;
@@ -403,15 +434,42 @@ class AuthenticatedBackendApiClient extends ApiClient {
         return {
           items: response,
           total,
-          offset: params?.offset || 0,
+          offset: params?.offset || 0, // Using offset here because we're just returning it to the UI
           limit: params?.limit || 25
         };
       },
     };
 
     this.plans = {
-      list: (params?: { page?: number; limit?: number; search?: string }) =>
-        this.get<{ items: any[]; total: number; page: number; limit: number }>('/api/v1/plans', params),
+      list: async (params?: { page?: number; limit?: number; search?: string }) => {
+        const queryParams: Record<string, any> = {};
+        
+        // Handle pagination - FastAPI uses skip/limit instead of page
+        if (params?.page !== undefined && params?.limit !== undefined) {
+          queryParams.skip = (params.page - 1) * params.limit;
+          queryParams.limit = params.limit;
+        } else {
+          queryParams.limit = 25; // Default limit
+        }
+        
+        // Add other params
+        if (params?.search) {
+          queryParams.search = params.search;
+        }
+        
+        const response = await this.get<any[]>('/api/v1/plans', queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        
+        // Extract pagination info from headers
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+        
+        return {
+          items: response,
+          total,
+          page: params?.page || 1,
+          limit: params?.limit || 25
+        };
+      },
       
       get: (id: string) =>
         this.get<any>(`/api/v1/plans/${id}`),
