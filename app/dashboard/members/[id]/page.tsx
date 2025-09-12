@@ -488,6 +488,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
   // Fund Ledger state
@@ -573,9 +574,32 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       // Transform API response to form data structure
       const memberData: MemberFormData = {
         ...response,
-        addresses: response.addresses || [],
-        phoneNumbers: response.phone_numbers || [],
-        emailAddresses: response.email_addresses || [],
+        // Transform addresses from API format to UI format
+        addresses: (response.addresses || []).map((addr: any) => ({
+          id: addr.id,
+          type: addr.label || 'HOME', // Map API 'label' to UI 'type'
+          street1: addr.street1,
+          street2: addr.street2 || '',
+          city: addr.city,
+          state: addr.state,
+          zip: addr.zip,
+        })),
+        
+        // Transform phone numbers from API format to UI format
+        phoneNumbers: (response.phone_numbers || []).map((phone: any) => ({
+          id: phone.id,
+          type: phone.label || 'MOBILE', // Map API 'label' to UI 'type'
+          number: phone.number,
+          extension: '', // Not currently supported in API
+        })),
+        
+        // Transform email addresses from API format to UI format
+        emailAddresses: (response.email_addresses || []).map((email: any) => ({
+          id: email.id,
+          type: email.label || 'PERSONAL', // Map API 'label' to UI 'type'
+          email: email.email_address,
+        })),
+        
         distribution_class_coverages: response.distribution_class_coverages || [],
         member_status_coverages: response.member_status_coverages || [],
         life_insurance_coverages: response.life_insurance_coverages || [],
@@ -613,22 +637,85 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     try {
       setSaving(true);
       setError(null);
+      setSuccess(null);
       
-      // Prepare data for API (remove UI-specific fields)
-      const { addresses, phoneNumbers, emailAddresses, ...memberData } = formData;
-      
+      // Transform data for the nested update API
       const updateData = {
-        ...memberData,
-        addresses: addresses,
-        phone_numbers: phoneNumbers,
-        email_addresses: emailAddresses,
+        // Core member fields
+        id: formData.id,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        middle_name: formData.middle_name || null,
+        suffix: formData.suffix || null,
+        gender: formData.gender || null,
+        birth_date: formData.birth_date || null,
+        deceased: formData.deceased,
+        deceased_date: formData.deceased_date || null,
+        is_forced_distribution: formData.is_forced_distribution,
+        force_distribution_class_id: formData.force_distribution_class_id || null,
+        unique_id: formData.unique_id,
+        disabled_waiver: formData.disabled_waiver,
+        care_of: formData.care_of || null,
+        include_cms: formData.include_cms,
+        
+        // Transform addresses with proper type field
+        addresses: formData.addresses.map(addr => ({
+          ...(addr.id && { id: addr.id }),
+          type: 'person_address', // Required polymorphic identity
+          label: addr.type, // Map UI 'type' to API 'label'
+          street1: addr.street1,
+          street2: addr.street2 || null,
+          city: addr.city,
+          state: addr.state,
+          zip: addr.zip,
+        })),
+        
+        // Transform phone numbers with proper type field  
+        phone_numbers: formData.phoneNumbers.map(phone => ({
+          ...(phone.id && { id: phone.id }),
+          type: 'person_phone_number', // Required polymorphic identity
+          label: phone.type, // Map UI 'type' to API 'label'
+          number: phone.number,
+          country_code: '1', // Default to US
+          is_default: false,
+        })),
+        
+        // Transform email addresses with proper type field
+        email_addresses: formData.emailAddresses.map(email => ({
+          ...(email.id && { id: email.id }),
+          type: 'person_email_address', // Required polymorphic identity
+          label: email.type, // Map UI 'type' to API 'label'
+          email_address: email.email,
+          is_default: false,
+        })),
+        
+        // Include coverage data (read-only for now, but API expects them)
+        distribution_class_coverages: formData.distribution_class_coverages.map(coverage => ({
+          ...(coverage.id && { id: coverage.id }),
+          distribution_class_id: coverage.distribution_class_id,
+          start_date: coverage.start_date,
+          end_date: coverage.end_date || null,
+        })),
+        
+        member_status_coverages: formData.member_status_coverages.map(coverage => ({
+          ...(coverage.id && { id: coverage.id }),
+          member_status_id: coverage.member_status_id,
+          start_date: coverage.start_date,
+          end_date: coverage.end_date || null,
+        })),
       };
       
       await backendApiClient.members.update(resolvedParams.id, updateData);
       
-      // Update original data and exit edit mode
-      setOriginalData(formData);
+      // Refresh data from API to get updated nested info
+      await fetchMember();
+      
       setHasUnsavedChanges(false);
+      setSuccess('Member data saved successfully!');
+      
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setSuccess(null), 3000);
+      
       router.push(`/dashboard/members/${resolvedParams.id}?mode=view`);
     } catch (err) {
       console.error('Error saving member:', err);
@@ -1241,6 +1328,15 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
           </CardContent>
         </Card>
       )}
+      
+      {/* Success Display */}
+      {success && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-green-600 text-sm">{success}</div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
@@ -1449,7 +1545,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                 <p className="text-gray-500 text-sm">No addresses added</p>
               ) : (
                 formData.addresses.map((address, index) => (
-                  <div key={`address-${index}-${address.type}-${address.street1}`} className="border rounded-lg p-4 space-y-3">
+                  <div key={address.id || `address-${index}`} className="border rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -1567,7 +1663,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                 <p className="text-gray-500 text-sm">No phone numbers added</p>
               ) : (
                 formData.phoneNumbers.map((phone, index) => (
-                  <div key={`phone-${index}-${phone.type}-${phone.number}`} className="flex items-center gap-4">
+                  <div key={phone.id || `phone-${index}`} className="flex items-center gap-4">
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1650,7 +1746,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                 <p className="text-gray-500 text-sm">No email addresses added</p>
               ) : (
                 formData.emailAddresses.map((email, index) => (
-                  <div key={`email-${index}-${email.type}-${email.email}`} className="flex items-center gap-4">
+                  <div key={email.id || `email-${index}`} className="flex items-center gap-4">
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
