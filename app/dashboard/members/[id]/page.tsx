@@ -508,6 +508,9 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   const [endDateFilter, setEndDateFilter] = useState<string>('');
   const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
   
+  // Distribution classes state
+  const [distributionClasses, setDistributionClasses] = useState<DistributionClass[]>([]);
+  
   const [originalData, setOriginalData] = useState<MemberFormData | null>(null);
   const [formData, setFormData] = useState<MemberFormData>({
     id: 0,
@@ -639,6 +642,28 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       setError(null);
       setSuccess(null);
       
+      // Validate distribution class coverages before saving
+      const invalidCoverages = formData.distribution_class_coverages.filter(
+        coverage => !coverage.start_date || !coverage.distribution_class_id
+      );
+      
+      if (invalidCoverages.length > 0) {
+        setError('Please complete all distribution class coverage entries before saving. Each coverage must have a distribution class selected and a start date.');
+        setSaving(false);
+        return;
+      }
+      
+      // Check for multiple active coverages (no end date)
+      const activeCoverages = formData.distribution_class_coverages.filter(
+        coverage => coverage.start_date && coverage.distribution_class_id && !coverage.end_date
+      );
+      
+      if (activeCoverages.length > 1) {
+        setError('Only one distribution class coverage can be active at a time. Please set an end date for existing active coverages before adding a new one.');
+        setSaving(false);
+        return;
+      }
+      
       // Transform data for the nested update API
       const updateData = {
         // Core member fields
@@ -689,13 +714,40 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
           is_default: false,
         })),
         
-        // Include coverage data (read-only for now, but API expects them)
-        distribution_class_coverages: formData.distribution_class_coverages.map(coverage => ({
-          ...(coverage.id && { id: coverage.id }),
-          distribution_class_id: coverage.distribution_class_id,
-          start_date: coverage.start_date,
-          end_date: coverage.end_date || null,
-        })),
+        // Include coverage data with timezone-aware date formatting
+        distribution_class_coverages: formData.distribution_class_coverages.map(coverage => {
+          // Convert dates to timezone-aware format to match backend expectations
+          const formatDateForAPI = (dateStr: string | undefined) => {
+            if (!dateStr) return null;
+            
+            // If it's already a full ISO string, return as-is
+            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(dateStr)) {
+              return dateStr;
+            }
+            
+            // If it's YYYY-MM-DD format, convert to timezone-aware ISO string
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+              // Create date at midnight UTC to match backend expectations
+              return new Date(dateStr + 'T00:00:00.000Z').toISOString();
+            }
+            
+            // Fallback: extract date part and convert to UTC
+            const datePart = dateStr.split('T')[0];
+            return new Date(datePart + 'T00:00:00.000Z').toISOString();
+          };
+          
+          // Skip coverages that don't have required fields set
+          if (!coverage.start_date || !coverage.distribution_class_id) {
+            return null; // Will be filtered out below
+          }
+          
+          return {
+            ...(coverage.id && coverage.id > 0 && { id: coverage.id }),
+            distribution_class_id: coverage.distribution_class_id,
+            start_date: formatDateForAPI(coverage.start_date),
+            end_date: formatDateForAPI(coverage.end_date),
+          };
+        }).filter(coverage => coverage !== null), // Remove invalid coverages
         
         member_status_coverages: formData.member_status_coverages.map(coverage => ({
           ...(coverage.id && { id: coverage.id }),
@@ -996,6 +1048,43 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }));
   };
 
+  // Distribution Class Coverage management functions
+  const addDistributionClassCoverage = () => {
+    const now = new Date();
+    const todayDateISO = new Date(now.toISOString().split('T')[0] + 'T00:00:00.000Z').toISOString();
+    const newCoverage: DistributionClassCoverage = {
+      id: -Date.now(), // Use negative timestamp for temporary unique ID
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      start_date: todayDateISO, // Timezone-aware format
+      end_date: undefined,
+      member_id: formData.id,
+      distribution_class_id: 0, // Will be selected by user
+      distribution_class: undefined,
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      distribution_class_coverages: [...prev.distribution_class_coverages, newCoverage]
+    }));
+  };
+
+  const removeDistributionClassCoverage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      distribution_class_coverages: prev.distribution_class_coverages.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateDistributionClassCoverage = (index: number, field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      distribution_class_coverages: prev.distribution_class_coverages.map((coverage, i) => 
+        i === index ? { ...coverage, [field]: value } : coverage
+      )
+    }));
+  };
+
   // Fund Ledger functions
   const fetchLedgerEntries = useCallback(async () => {
     if (activeTab !== 'fund-ledger') return;
@@ -1044,6 +1133,15 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       setLedgerEntryTypes(types);
     } catch (err) {
       console.error('Error fetching ledger entry types:', err);
+    }
+  }, []);
+  
+  const fetchDistributionClasses = useCallback(async () => {
+    try {
+      const classes = await backendApiClient.distributionClasses.list();
+      setDistributionClasses(classes);
+    } catch (err) {
+      console.error('Error fetching distribution classes:', err);
     }
   }, []);
   
@@ -1107,6 +1205,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     fetchLedgerEntryTypes();
   }, [fetchLedgerEntryTypes]);
   
+  // Fetch distribution classes on component mount
+  useEffect(() => {
+    fetchDistributionClasses();
+  }, [fetchDistributionClasses]);
+  
   // Reset filters when changing to fund ledger tab
   useEffect(() => {
     if (activeTab === 'fund-ledger') {
@@ -1155,8 +1258,18 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
 
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg font-semibold">{title}</CardTitle>
+          {isEditMode && type === 'distribution_class' && (
+            <Button 
+              onClick={addDistributionClassCoverage}
+              size="sm"
+              className="bg-union-600 hover:bg-union-700 text-white"
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add Coverage
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {coverages.length === 0 ? (
@@ -1168,17 +1281,56 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                 const secondaryInfo = getSecondaryInfo(coverage);
                 
                 return (
-                  <div key={coverage.id || index} className="border rounded-lg p-4">
+                  <div key={coverage.id} className="border rounded-lg p-4">
                     <div className="space-y-3">
-                      {/* Main coverage name/description */}
+                      {/* Header with remove button for edit mode */}
+                      {isEditMode && type === 'distribution_class' && (
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium text-gray-900">Coverage #{index + 1}</h4>
+                          <Button 
+                            onClick={() => removeDistributionClassCoverage(index)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {/* Main coverage selection/display */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           {type === 'distribution_class' ? 'Distribution Class' : 
                            type === 'member_status' ? 'Member Status' : 'Coverage Type'}
                         </label>
-                        <p className="text-sm font-medium text-gray-900">{displayName}</p>
-                        {secondaryInfo && (
-                          <p className="text-xs text-gray-600 mt-1">{secondaryInfo}</p>
+                        {isEditMode && type === 'distribution_class' ? (
+                          <Select 
+                            value={(coverage as DistributionClassCoverage).distribution_class_id?.toString() || ''} 
+                            onValueChange={(value) => {
+                              const selectedClass = distributionClasses.find(dc => dc.id === parseInt(value));
+                              updateDistributionClassCoverage(index, 'distribution_class_id', parseInt(value));
+                              updateDistributionClassCoverage(index, 'distribution_class', selectedClass);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select Distribution Class" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {distributionClasses.map((dc) => (
+                                <SelectItem key={dc.id} value={dc.id.toString()}>
+                                  {dc.description}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{displayName}</p>
+                            {secondaryInfo && (
+                              <p className="text-xs text-gray-600 mt-1">{secondaryInfo}</p>
+                            )}
+                          </div>
                         )}
                       </div>
                       
@@ -1188,20 +1340,45 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Start Date
                           </label>
-                          <p className="text-sm">
-                            {coverage.start_date ? new Date(coverage.start_date).toLocaleDateString() : 'N/A'}
-                          </p>
+                          {isEditMode && type === 'distribution_class' ? (
+                            <Input
+                              type="date"
+                              value={coverage.start_date ? coverage.start_date.split('T')[0] : ''}
+                              onChange={(e) => {
+                                // Convert date input to ISO string format for consistent backend handling
+                                const isoDate = e.target.value ? new Date(e.target.value + 'T00:00:00.000Z').toISOString() : '';
+                                updateDistributionClassCoverage(index, 'start_date', isoDate);
+                              }}
+                            />
+                          ) : (
+                            <p className="text-sm">
+                              {coverage.start_date ? new Date(coverage.start_date).toLocaleDateString() : 'N/A'}
+                            </p>
+                          )}
                         </div>
                         
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             End Date
                           </label>
-                          <p className="text-sm">
-                            {coverage.end_date ? new Date(coverage.end_date).toLocaleDateString() : (
-                              <span className="text-green-600 font-medium">Active</span>
-                            )}
-                          </p>
+                          {isEditMode && type === 'distribution_class' ? (
+                            <Input
+                              type="date"
+                              value={coverage.end_date ? coverage.end_date.split('T')[0] : ''}
+                              onChange={(e) => {
+                                // Convert date input to ISO string format or undefined for empty values
+                                const isoDate = e.target.value ? new Date(e.target.value + 'T00:00:00.000Z').toISOString() : undefined;
+                                updateDistributionClassCoverage(index, 'end_date', isoDate);
+                              }}
+                              placeholder="Leave empty for active coverage"
+                            />
+                          ) : (
+                            <p className="text-sm">
+                              {coverage.end_date ? new Date(coverage.end_date).toLocaleDateString() : (
+                                <span className="text-green-600 font-medium">Active</span>
+                              )}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -179,6 +179,9 @@ class AuthenticatedBackendApiClient extends ApiClient {
   ledgerEntries!: {
     getTypes: () => Promise<{ value: string; label: string; }[]>;
   };
+  distributionClasses!: {
+    list: () => Promise<any[]>;
+  };
 
   constructor(baseURL: string) {
     super(baseURL);
@@ -510,6 +513,11 @@ class AuthenticatedBackendApiClient extends ApiClient {
     this.ledgerEntries = {
       getTypes: () =>
         this.get<{ value: string; label: string; }[]>('/api/v1/ledger_entries/types'),
+    };
+    
+    this.distributionClasses = {
+      list: () =>
+        this.get<any[]>('/api/v1/distribution_classes'),
     };
   }
   
