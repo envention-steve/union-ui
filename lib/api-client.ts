@@ -182,6 +182,9 @@ class AuthenticatedBackendApiClient extends ApiClient {
   distributionClasses!: {
     list: () => Promise<any[]>;
   };
+  memberStatuses!: {
+    list: () => Promise<any[]>;
+  };
 
   constructor(baseURL: string) {
     super(baseURL);
@@ -518,6 +521,11 @@ class AuthenticatedBackendApiClient extends ApiClient {
     this.distributionClasses = {
       list: () =>
         this.get<any[]>('/api/v1/distribution_classes'),
+    };
+    
+    this.memberStatuses = {
+      list: () =>
+        this.get<any[]>('/api/v1/member_statuses'),
     };
   }
   

@@ -511,6 +511,9 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   // Distribution classes state
   const [distributionClasses, setDistributionClasses] = useState<DistributionClass[]>([]);
   
+  // Member statuses state
+  const [memberStatuses, setMemberStatuses] = useState<MemberStatus[]>([]);
+  
   const [originalData, setOriginalData] = useState<MemberFormData | null>(null);
   const [formData, setFormData] = useState<MemberFormData>({
     id: 0,
@@ -664,8 +667,99 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         return;
       }
       
-      // Transform data for the nested update API
-      const updateData = {
+      // Validate member status coverages before saving
+      const invalidMemberStatusCoverages = formData.member_status_coverages.filter(
+        coverage => !coverage.start_date || !coverage.member_status_id
+      );
+      
+      if (invalidMemberStatusCoverages.length > 0) {
+        setError('Please complete all member status coverage entries before saving. Each coverage must have a member status selected and a start date.');
+        setSaving(false);
+        return;
+      }
+      
+      // Check for multiple active member status coverages (no end date)
+      const activeMemberStatusCoverages = formData.member_status_coverages.filter(
+        coverage => coverage.start_date && coverage.member_status_id && !coverage.end_date
+      );
+      
+      if (activeMemberStatusCoverages.length > 1) {
+        setError('Only one member status coverage can be active at a time. Please set an end date for existing active coverages before adding a new one.');
+        setSaving(false);
+        return;
+      }
+      
+      // Convert dates to timezone-aware format to match backend expectations
+      const formatDateForAPI = (dateStr: string | undefined) => {
+        if (!dateStr) return null;
+        
+        // If it's already a full ISO string, return as-is
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(dateStr)) {
+          return dateStr;
+        }
+        
+        // If it's YYYY-MM-DD format, convert to timezone-aware ISO string
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+          // Create date at midnight UTC to match backend expectations
+          return new Date(dateStr + 'T00:00:00.000Z').toISOString();
+        }
+        
+        // Fallback: extract date part and convert to UTC
+        const datePart = dateStr.split('T')[0];
+        return new Date(datePart + 'T00:00:00.000Z').toISOString();
+      };
+
+      // Process coverage changes to handle transaction issues
+      // We need to handle coverages that are being ended and new ones being created separately
+      // to avoid constraint violations when ending one coverage and starting another
+      
+      // Only process distribution class coverages if they've actually been modified
+      const originalDistributionCoverages = originalData?.distribution_class_coverages || [];
+      const distributionCoveragesChanged = 
+        JSON.stringify(formData.distribution_class_coverages) !== JSON.stringify(originalDistributionCoverages);
+      
+      const processedDistributionCoverages = distributionCoveragesChanged ? formData.distribution_class_coverages
+        .map(coverage => {
+          // Skip coverages that don't have required fields set
+          if (!coverage.start_date || !coverage.distribution_class_id) {
+            return null; // Will be filtered out below
+          }
+          
+          return {
+            ...(coverage.id && coverage.id > 0 && { id: coverage.id }),
+            distribution_class_id: coverage.distribution_class_id,
+            start_date: formatDateForAPI(coverage.start_date),
+            end_date: formatDateForAPI(coverage.end_date),
+          };
+        })
+        .filter(coverage => coverage !== null) : [];
+
+      // Only process member status coverages if they've actually been modified
+      const originalMemberStatusCoverages = originalData?.member_status_coverages || [];
+      const memberStatusCoveragesChanged = 
+        JSON.stringify(formData.member_status_coverages) !== JSON.stringify(originalMemberStatusCoverages);
+      
+      const processedMemberStatusCoverages = memberStatusCoveragesChanged ? formData.member_status_coverages
+        .map(coverage => {
+          // Skip coverages that don't have required fields set
+          if (!coverage.start_date || !coverage.member_status_id) {
+            return null; // Will be filtered out below
+          }
+          
+          return {
+            ...(coverage.id && coverage.id > 0 && { id: coverage.id }),
+            member_status_id: coverage.member_status_id,
+            start_date: formatDateForAPI(coverage.start_date),
+            end_date: formatDateForAPI(coverage.end_date),
+          };
+        })
+        .filter(coverage => coverage !== null) : [];
+
+      // Note: We include all coverages (ending and new) in a single API call
+      // The backend will handle updates vs creates based on the presence of IDs
+
+      // Base data for member updates (without coverages)
+      const baseUpdateData = {
         // Core member fields
         id: formData.id,
         first_name: formData.first_name,
@@ -713,48 +807,21 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
           email_address: email.email,
           is_default: false,
         })),
-        
-        // Include coverage data with timezone-aware date formatting
-        distribution_class_coverages: formData.distribution_class_coverages.map(coverage => {
-          // Convert dates to timezone-aware format to match backend expectations
-          const formatDateForAPI = (dateStr: string | undefined) => {
-            if (!dateStr) return null;
-            
-            // If it's already a full ISO string, return as-is
-            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(dateStr)) {
-              return dateStr;
-            }
-            
-            // If it's YYYY-MM-DD format, convert to timezone-aware ISO string
-            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-              // Create date at midnight UTC to match backend expectations
-              return new Date(dateStr + 'T00:00:00.000Z').toISOString();
-            }
-            
-            // Fallback: extract date part and convert to UTC
-            const datePart = dateStr.split('T')[0];
-            return new Date(datePart + 'T00:00:00.000Z').toISOString();
-          };
-          
-          // Skip coverages that don't have required fields set
-          if (!coverage.start_date || !coverage.distribution_class_id) {
-            return null; // Will be filtered out below
-          }
-          
-          return {
-            ...(coverage.id && coverage.id > 0 && { id: coverage.id }),
-            distribution_class_id: coverage.distribution_class_id,
-            start_date: formatDateForAPI(coverage.start_date),
-            end_date: formatDateForAPI(coverage.end_date),
-          };
-        }).filter(coverage => coverage !== null), // Remove invalid coverages
-        
-        member_status_coverages: formData.member_status_coverages.map(coverage => ({
-          ...(coverage.id && { id: coverage.id }),
-          member_status_id: coverage.member_status_id,
-          start_date: coverage.start_date,
-          end_date: coverage.end_date || null,
-        })),
+      };
+
+      // Determine if we have any coverage changes to process
+      const hasDistributionCoverageChanges = distributionCoveragesChanged && processedDistributionCoverages.length > 0;
+      const hasMemberStatusCoverageChanges = memberStatusCoveragesChanged && processedMemberStatusCoverages.length > 0;
+
+      // Single API call with all changes
+      const updateData = {
+        ...baseUpdateData,
+        ...(hasDistributionCoverageChanges && {
+          distribution_class_coverages: processedDistributionCoverages
+        }),
+        ...(hasMemberStatusCoverageChanges && {
+          member_status_coverages: processedMemberStatusCoverages
+        }),
       };
       
       await backendApiClient.members.update(resolvedParams.id, updateData);
@@ -1085,6 +1152,43 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }));
   };
 
+  // Member Status Coverage management functions
+  const addMemberStatusCoverage = () => {
+    const now = new Date();
+    const todayDateISO = new Date(now.toISOString().split('T')[0] + 'T00:00:00.000Z').toISOString();
+    const newCoverage: MemberStatusCoverage = {
+      id: -Date.now(), // Use negative timestamp for temporary unique ID
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      start_date: todayDateISO, // Timezone-aware format
+      end_date: undefined,
+      member_id: formData.id,
+      member_status_id: 0, // Will be selected by user
+      member_status: undefined,
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      member_status_coverages: [...prev.member_status_coverages, newCoverage]
+    }));
+  };
+
+  const removeMemberStatusCoverage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      member_status_coverages: prev.member_status_coverages.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateMemberStatusCoverage = (index: number, field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      member_status_coverages: prev.member_status_coverages.map((coverage, i) => 
+        i === index ? { ...coverage, [field]: value } : coverage
+      )
+    }));
+  };
+
   // Fund Ledger functions
   const fetchLedgerEntries = useCallback(async () => {
     if (activeTab !== 'fund-ledger') return;
@@ -1142,6 +1246,15 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       setDistributionClasses(classes);
     } catch (err) {
       console.error('Error fetching distribution classes:', err);
+    }
+  }, []);
+  
+  const fetchMemberStatuses = useCallback(async () => {
+    try {
+      const statuses = await backendApiClient.memberStatuses.list();
+      setMemberStatuses(statuses);
+    } catch (err) {
+      console.error('Error fetching member statuses:', err);
     }
   }, []);
   
@@ -1210,6 +1323,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     fetchDistributionClasses();
   }, [fetchDistributionClasses]);
   
+  // Fetch member statuses on component mount
+  useEffect(() => {
+    fetchMemberStatuses();
+  }, [fetchMemberStatuses]);
+  
   // Reset filters when changing to fund ledger tab
   useEffect(() => {
     if (activeTab === 'fund-ledger') {
@@ -1270,6 +1388,16 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
               Add Coverage
             </Button>
           )}
+          {isEditMode && type === 'member_status' && (
+            <Button 
+              onClick={addMemberStatusCoverage}
+              size="sm"
+              className="bg-union-600 hover:bg-union-700 text-white"
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add Coverage
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {coverages.length === 0 ? (
@@ -1289,6 +1417,19 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                           <h4 className="text-sm font-medium text-gray-900">Coverage #{index + 1}</h4>
                           <Button 
                             onClick={() => removeDistributionClassCoverage(index)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                      {isEditMode && type === 'member_status' && (
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium text-gray-900">Coverage #{index + 1}</h4>
+                          <Button 
+                            onClick={() => removeMemberStatusCoverage(index)}
                             variant="ghost"
                             size="sm"
                             className="text-red-600 hover:text-red-800"
@@ -1324,6 +1465,26 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                               ))}
                             </SelectContent>
                           </Select>
+                        ) : isEditMode && type === 'member_status' ? (
+                          <Select 
+                            value={(coverage as MemberStatusCoverage).member_status_id?.toString() || ''} 
+                            onValueChange={(value) => {
+                              const selectedStatus = memberStatuses.find(ms => ms.id === parseInt(value));
+                              updateMemberStatusCoverage(index, 'member_status_id', parseInt(value));
+                              updateMemberStatusCoverage(index, 'member_status', selectedStatus);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select Member Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {memberStatuses.map((ms) => (
+                                <SelectItem key={ms.id} value={ms.id.toString()}>
+                                  {ms.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         ) : (
                           <div>
                             <p className="text-sm font-medium text-gray-900">{displayName}</p>
@@ -1350,6 +1511,16 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                                 updateDistributionClassCoverage(index, 'start_date', isoDate);
                               }}
                             />
+                          ) : isEditMode && type === 'member_status' ? (
+                            <Input
+                              type="date"
+                              value={coverage.start_date ? coverage.start_date.split('T')[0] : ''}
+                              onChange={(e) => {
+                                // Convert date input to ISO string format for consistent backend handling
+                                const isoDate = e.target.value ? new Date(e.target.value + 'T00:00:00.000Z').toISOString() : '';
+                                updateMemberStatusCoverage(index, 'start_date', isoDate);
+                              }}
+                            />
                           ) : (
                             <p className="text-sm">
                               {coverage.start_date ? new Date(coverage.start_date).toLocaleDateString() : 'N/A'}
@@ -1369,6 +1540,17 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                                 // Convert date input to ISO string format or undefined for empty values
                                 const isoDate = e.target.value ? new Date(e.target.value + 'T00:00:00.000Z').toISOString() : undefined;
                                 updateDistributionClassCoverage(index, 'end_date', isoDate);
+                              }}
+                              placeholder="Leave empty for active coverage"
+                            />
+                          ) : isEditMode && type === 'member_status' ? (
+                            <Input
+                              type="date"
+                              value={coverage.end_date ? coverage.end_date.split('T')[0] : ''}
+                              onChange={(e) => {
+                                // Convert date input to ISO string format or undefined for empty values
+                                const isoDate = e.target.value ? new Date(e.target.value + 'T00:00:00.000Z').toISOString() : undefined;
+                                updateMemberStatusCoverage(index, 'end_date', isoDate);
                               }}
                               placeholder="Leave empty for active coverage"
                             />
