@@ -377,7 +377,7 @@ interface InsurancePlanCoverage {
   member_id: number;
   insurance_plan_id: number;
   policy_number: string;
-  insurance_plan: InsurancePlan;
+  insurance_plan?: InsurancePlan;
   created_at?: string;
   updated_at?: string;
 }
@@ -514,6 +514,9 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   // Member statuses state
   const [memberStatuses, setMemberStatuses] = useState<MemberStatus[]>([]);
   
+  // Insurance plans state
+  const [insurancePlans, setInsurancePlans] = useState<InsurancePlan[]>([]);
+  
   const [originalData, setOriginalData] = useState<MemberFormData | null>(null);
   const [formData, setFormData] = useState<MemberFormData>({
     id: 0,
@@ -543,11 +546,15 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     member_notes: [],
   });
 
-  // Check for unsaved changes
+  // Check for unsaved changes (debounced to prevent excessive re-renders)
   useEffect(() => {
     if (originalData && isEditMode) {
-      const hasChanges = JSON.stringify(originalData) !== JSON.stringify(formData);
-      setHasUnsavedChanges(hasChanges);
+      const timeoutId = setTimeout(() => {
+        const hasChanges = JSON.stringify(originalData) !== JSON.stringify(formData);
+        setHasUnsavedChanges(hasChanges);
+      }, 100); // 100ms debounce
+      
+      return () => clearTimeout(timeoutId);
     } else {
       setHasUnsavedChanges(false);
     }
@@ -689,6 +696,28 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         return;
       }
       
+      // Validate insurance plan coverages before saving
+      const invalidInsurancePlanCoverages = formData.insurance_plan_coverages.filter(
+        coverage => !coverage.start_date || !coverage.insurance_plan_id
+      );
+      
+      if (invalidInsurancePlanCoverages.length > 0) {
+        setError('Please complete all insurance plan coverage entries before saving. Each coverage must have an insurance plan selected and a start date.');
+        setSaving(false);
+        return;
+      }
+      
+      // Check for multiple active insurance plan coverages (no end date)
+      const activeInsurancePlanCoverages = formData.insurance_plan_coverages.filter(
+        coverage => coverage.start_date && coverage.insurance_plan_id && !coverage.end_date
+      );
+      
+      if (activeInsurancePlanCoverages.length > 1) {
+        setError('Only one insurance plan coverage can be active at a time. Please set an end date for existing active coverages before adding a new one.');
+        setSaving(false);
+        return;
+      }
+      
       // Convert dates to timezone-aware format to match backend expectations
       const formatDateForAPI = (dateStr: string | undefined) => {
         if (!dateStr) return null;
@@ -755,6 +784,84 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         })
         .filter(coverage => coverage !== null) : [];
 
+      // Only process insurance plan coverages if they've actually been modified
+      const originalInsurancePlanCoverages = originalData?.insurance_plan_coverages || [];
+      const insurancePlanCoveragesChanged = 
+        JSON.stringify(formData.insurance_plan_coverages) !== JSON.stringify(originalInsurancePlanCoverages);
+      
+      
+      const processedInsurancePlanCoverages = insurancePlanCoveragesChanged ? formData.insurance_plan_coverages
+        .map(coverage => {
+          // Skip coverages that don't have required fields set
+          if (!coverage.start_date || !coverage.insurance_plan_id) {
+            return null; // Will be filtered out below
+          }
+          
+          const processed = {
+            ...(coverage.id && coverage.id > 0 && { id: coverage.id }),
+            member_id: parseInt(resolvedParams.id),
+            insurance_plan_id: coverage.insurance_plan_id,
+            policy_number: coverage.policy_number || '',
+            start_date: formatDateForAPI(coverage.start_date),
+            end_date: formatDateForAPI(coverage.end_date),
+          };
+          
+          return processed;
+        })
+        .filter(coverage => coverage !== null) : [];
+
+      // Only process dependent coverages if they've actually been modified
+      const originalDependentCoverages = originalData?.dependent_coverages || [];
+      const dependentCoveragesChanged = 
+        JSON.stringify(formData.dependent_coverages) !== JSON.stringify(originalDependentCoverages);
+      
+      console.log('**** DEPENDENT SAVE DEBUG ****', {
+        originalCount: originalDependentCoverages.length,
+        formDataCount: formData.dependent_coverages.length,
+        dependentCoveragesChanged,
+        originalData: originalDependentCoverages,
+        formData: formData.dependent_coverages
+      });
+      
+      const processedDependentCoverages = dependentCoveragesChanged ? formData.dependent_coverages
+        .map(coverage => {
+          // Skip coverages that don't have a dependent with required fields
+          if (!coverage.dependent || !coverage.dependent.first_name || !coverage.dependent.last_name) {
+            return null; // Will be filtered out below
+          }
+          
+          const processed = {
+            ...(coverage.id && coverage.id > 0 && { id: coverage.id }),
+            member_id: parseInt(resolvedParams.id),
+            start_date: formatDateForAPI(coverage.start_date),
+            end_date: formatDateForAPI(coverage.end_date),
+            dependent: {
+              ...(coverage.dependent.id && coverage.dependent.id > 0 && { id: coverage.dependent.id }),
+              first_name: coverage.dependent.first_name,
+              last_name: coverage.dependent.last_name,
+              middle_name: coverage.dependent.middle_name || null,
+              suffix: coverage.dependent.suffix || null,
+              phone: coverage.dependent.phone || null,
+              email: coverage.dependent.email || null,
+              gender: coverage.dependent.gender || null,
+              birth_date: coverage.dependent.birth_date || null,
+              dependent_type: coverage.dependent.dependent_type,
+              include_cms: coverage.dependent.include_cms,
+              marriage_date: coverage.dependent.marriage_date || null,
+              marriage_certificate: coverage.dependent.marriage_certificate || false,
+            }
+          };
+          
+          return processed;
+        })
+        .filter(coverage => coverage !== null) : [];
+
+      console.log('**** PROCESSED DEPENDENT COVERAGES ****', {
+        processedDependentCoverages,
+        hasDependentCoverageChanges: dependentCoveragesChanged,
+        willIncludeInPayload: dependentCoveragesChanged && processedDependentCoverages
+      });
+
       // Note: We include all coverages (ending and new) in a single API call
       // The backend will handle updates vs creates based on the presence of IDs
 
@@ -812,6 +919,8 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       // Determine if we have any coverage changes to process
       const hasDistributionCoverageChanges = distributionCoveragesChanged && processedDistributionCoverages.length > 0;
       const hasMemberStatusCoverageChanges = memberStatusCoveragesChanged && processedMemberStatusCoverages.length > 0;
+      const hasInsurancePlanCoverageChanges = insurancePlanCoveragesChanged && processedInsurancePlanCoverages.length > 0;
+      const hasDependentCoverageChanges = dependentCoveragesChanged && processedDependentCoverages.length > 0;
 
       // Single API call with all changes
       const updateData = {
@@ -822,9 +931,27 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         ...(hasMemberStatusCoverageChanges && {
           member_status_coverages: processedMemberStatusCoverages
         }),
+        ...(hasInsurancePlanCoverageChanges && {
+          insurance_plan_coverages: processedInsurancePlanCoverages
+        }),
+        ...(hasDependentCoverageChanges && {
+          dependent_coverages: processedDependentCoverages
+        }),
       };
       
-      await backendApiClient.members.update(resolvedParams.id, updateData);
+      console.log('**** FINAL API PAYLOAD ****', {
+        hasDependentCoverageChanges,
+        processedDependentCoveragesLength: processedDependentCoverages.length,
+        updateData,
+        dependentCoverages: updateData.dependent_coverages || 'NOT INCLUDED'
+      });
+      
+      const response = await backendApiClient.members.update(resolvedParams.id, updateData);
+      
+      console.log('**** API UPDATE COMPLETED ****', {
+        response,
+        requestedDependentCoverages: updateData.dependent_coverages?.length || 0
+      });
       
       // Refresh data from API to get updated nested info
       await fetchMember();
@@ -945,8 +1072,10 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const addDependent = () => {
+    const now = new Date();
+    const todayDateISO = new Date(now.toISOString().split('T')[0] + 'T00:00:00.000Z').toISOString();
     const newDependentCoverage: DependentCoverage = {
-      start_date: new Date().toISOString(),
+      start_date: todayDateISO,
       member_id: formData.id,
       dependent_id: 0, // Will be set by API
       dependent: {
@@ -985,6 +1114,20 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
           : depCoverage
       )
     }) as MemberFormData);
+  };
+
+  const updateDependentCoverage = (index: number, field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      dependent_coverages: prev.dependent_coverages.map((depCoverage, i) => 
+        i === index 
+          ? {
+              ...depCoverage,
+              [field]: value
+            }
+          : depCoverage
+      )
+    }));
   };
 
   const addEmployer = () => {
@@ -1032,60 +1175,43 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }));
   };
 
-  const addInsurancePlan = () => {
-    const newInsurancePlanCoverage: InsurancePlanCoverage = {
-      start_date: new Date().toISOString(),
+  // Insurance Plan Coverage management functions
+  const addInsurancePlanCoverage = () => {
+    const now = new Date();
+    const todayDateISO = new Date(now.toISOString().split('T')[0] + 'T00:00:00.000Z').toISOString();
+    const newCoverage: InsurancePlanCoverage = {
+      id: -Date.now(), // Use negative timestamp for temporary unique ID
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      start_date: todayDateISO, // Timezone-aware format
+      end_date: undefined,
       member_id: formData.id,
-      insurance_plan_id: 0, // Will be set by API
+      insurance_plan_id: 0, // Will be selected by user
       policy_number: '',
-      insurance_plan: {
-        name: '',
-        code: '',
-        type: 'HEALTH',
-        group: '',
-        include_cms: false,
-        insurance_plan_company_id: undefined,
-      }
+      insurance_plan: undefined,
     };
     
     setFormData(prev => ({
       ...prev,
-      insurance_plan_coverages: [...prev.insurance_plan_coverages, newInsurancePlanCoverage]
+      insurance_plan_coverages: [...prev.insurance_plan_coverages, newCoverage]
     }));
   };
 
-  const removeInsurancePlan = (index: number) => {
+  const removeInsurancePlanCoverage = (index: number) => {
     setFormData(prev => ({
       ...prev,
       insurance_plan_coverages: prev.insurance_plan_coverages.filter((_, i) => i !== index)
     }));
   };
 
-  const updateInsurancePlan = (index: number, field: string, value: any) => {
-    if (field === 'policy_number') {
-      setFormData(prev => ({
-        ...prev,
-        insurance_plan_coverages: prev.insurance_plan_coverages.map((planCoverage, i) => 
-          i === index ? { ...planCoverage, [field]: value } : planCoverage
-        )
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        insurance_plan_coverages: prev.insurance_plan_coverages.map((planCoverage, i) => 
-          i === index 
-            ? {
-                ...planCoverage,
-                insurance_plan: {
-                  ...planCoverage.insurance_plan,
-                  [field]: value
-                }
-              }
-            : planCoverage
-        )
-      }));
-    }
-  };
+  const updateInsurancePlanCoverage = useCallback((index: number, field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      insurance_plan_coverages: prev.insurance_plan_coverages.map((coverage, i) => 
+        i === index ? { ...coverage, [field]: value } : coverage
+      )
+    }));
+  }, []);
 
   const addNote = () => {
     const newNote: MemberNote = {
@@ -1258,6 +1384,16 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }
   }, []);
   
+  const fetchInsurancePlans = useCallback(async () => {
+    try {
+      const plans = await backendApiClient.insurancePlans.list();
+      setInsurancePlans(plans || []);
+    } catch (err) {
+      console.error('Error fetching insurance plans:', err);
+      setInsurancePlans([]); // Set empty array on error
+    }
+  }, []);
+  
   const toggleEntryExpansion = (entryId: number) => {
     setExpandedEntries(prev => {
       const newSet = new Set(prev);
@@ -1328,6 +1464,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     fetchMemberStatuses();
   }, [fetchMemberStatuses]);
   
+  // Fetch insurance plans on component mount
+  useEffect(() => {
+    fetchInsurancePlans();
+  }, [fetchInsurancePlans]);
+  
   // Reset filters when changing to fund ledger tab
   useEffect(() => {
     if (activeTab === 'fund-ledger') {
@@ -1337,14 +1478,14 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   }, [activeTab]);
 
   // Coverage display component
-  const CoverageList = ({ 
+  const CoverageList = React.memo(({ 
     title, 
     coverages, 
     type 
   }: { 
     title: string; 
-    coverages: DistributionClassCoverage[] | MemberStatusCoverage[] | LifeInsuranceCoverage[];
-    type: 'distribution_class' | 'member_status' | 'life_insurance';
+    coverages: DistributionClassCoverage[] | MemberStatusCoverage[] | LifeInsuranceCoverage[] | InsurancePlanCoverage[];
+    type: 'distribution_class' | 'member_status' | 'life_insurance' | 'insurance_plan';
   }) => {
     const getDisplayName = (coverage: any) => {
       if (type === 'distribution_class' && coverage.distribution_class) {
@@ -1352,6 +1493,9 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       }
       if (type === 'member_status' && coverage.member_status) {
         return coverage.member_status.name;
+      }
+      if (type === 'insurance_plan' && coverage.insurance_plan) {
+        return coverage.insurance_plan.name;
       }
       return coverage.status || 'N/A';
     };
@@ -1362,6 +1506,17 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       }
       if (type === 'member_status' && coverage.member_status) {
         return `Admin Fee: $${coverage.member_status.admin_fee}`;
+      }
+      if (type === 'insurance_plan') {
+        const info = [];
+        if (coverage.insurance_plan) {
+          info.push(`Type: ${coverage.insurance_plan.type}`);
+          info.push(`Code: ${coverage.insurance_plan.code}`);
+        }
+        if (coverage.policy_number) {
+          info.push(`Policy: ${coverage.policy_number}`);
+        }
+        return info.length > 0 ? info.join(' | ') : null;
       }
       if (type === 'life_insurance') {
         const info = [];
@@ -1398,6 +1553,16 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
               Add Coverage
             </Button>
           )}
+          {isEditMode && type === 'insurance_plan' && (
+            <Button 
+              onClick={addInsurancePlanCoverage}
+              size="sm"
+              className="bg-union-600 hover:bg-union-700 text-white"
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add Coverage
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {coverages.length === 0 ? (
@@ -1409,7 +1574,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                 const secondaryInfo = getSecondaryInfo(coverage);
                 
                 return (
-                  <div key={coverage.id} className="border rounded-lg p-4">
+                  <div key={index} className="border rounded-lg p-4">
                     <div className="space-y-3">
                       {/* Header with remove button for edit mode */}
                       {isEditMode && type === 'distribution_class' && (
@@ -1438,12 +1603,26 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                           </Button>
                         </div>
                       )}
+                      {isEditMode && type === 'insurance_plan' && (
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium text-gray-900">Coverage #{index + 1}</h4>
+                          <Button 
+                            onClick={() => removeInsurancePlanCoverage(index)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                       
                       {/* Main coverage selection/display */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           {type === 'distribution_class' ? 'Distribution Class' : 
-                           type === 'member_status' ? 'Member Status' : 'Coverage Type'}
+                           type === 'member_status' ? 'Member Status' :
+                           type === 'insurance_plan' ? 'Insurance Plan' : 'Coverage Type'}
                         </label>
                         {isEditMode && type === 'distribution_class' ? (
                           <Select 
@@ -1485,6 +1664,26 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                               ))}
                             </SelectContent>
                           </Select>
+                        ) : isEditMode && type === 'insurance_plan' ? (
+                          <Select 
+                            value={(coverage as InsurancePlanCoverage).insurance_plan_id?.toString() || ''} 
+                            onValueChange={(value) => {
+                              const selectedPlan = insurancePlans.find(ip => ip.id === parseInt(value));
+                              updateInsurancePlanCoverage(index, 'insurance_plan_id', parseInt(value));
+                              updateInsurancePlanCoverage(index, 'insurance_plan', selectedPlan);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select Insurance Plan" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {insurancePlans.map((ip) => (
+                                <SelectItem key={ip.id} value={ip.id?.toString() || ''}>
+                                  {ip.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         ) : (
                           <div>
                             <p className="text-sm font-medium text-gray-900">{displayName}</p>
@@ -1521,6 +1720,16 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                                 updateMemberStatusCoverage(index, 'start_date', isoDate);
                               }}
                             />
+                          ) : isEditMode && type === 'insurance_plan' ? (
+                            <Input
+                              type="date"
+                              value={coverage.start_date ? coverage.start_date.split('T')[0] : ''}
+                              onChange={(e) => {
+                                // Convert date input to ISO string format for consistent backend handling
+                                const isoDate = e.target.value ? new Date(e.target.value + 'T00:00:00.000Z').toISOString() : '';
+                                updateInsurancePlanCoverage(index, 'start_date', isoDate);
+                              }}
+                            />
                           ) : (
                             <p className="text-sm">
                               {coverage.start_date ? new Date(coverage.start_date).toLocaleDateString() : 'N/A'}
@@ -1554,15 +1763,45 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                               }}
                               placeholder="Leave empty for active coverage"
                             />
+                          ) : isEditMode && type === 'insurance_plan' ? (
+                            <Input
+                              type="date"
+                              value={coverage.end_date ? coverage.end_date.split('T')[0] : ''}
+                              onChange={(e) => {
+                                // Convert date input to ISO string format or undefined for empty values
+                                const isoDate = e.target.value ? new Date(e.target.value + 'T00:00:00.000Z').toISOString() : undefined;
+                                updateInsurancePlanCoverage(index, 'end_date', isoDate);
+                              }}
+                              placeholder="Leave empty for active coverage"
+                            />
                           ) : (
                             <p className="text-sm">
-                              {coverage.end_date ? new Date(coverage.end_date).toLocaleDateString() : (
-                                <span className="text-green-600 font-medium">Active</span>
-                              )}
+                              {coverage.end_date ? new Date(coverage.end_date).toLocaleDateString() : ''}
                             </p>
                           )}
                         </div>
                       </div>
+                      
+                      {/* Policy Number field for insurance plan coverages */}
+                      {type === 'insurance_plan' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Policy Number
+                          </label>
+                          {isEditMode ? (
+                            <Input
+                              key={`policy-${index}`}
+                              defaultValue={(coverage as InsurancePlanCoverage).policy_number || ''}
+                              onBlur={(e) => updateInsurancePlanCoverage(index, 'policy_number', e.target.value)}
+                              placeholder="Enter policy number"
+                            />
+                          ) : (
+                            <p className="text-sm">
+                              {(coverage as InsurancePlanCoverage).policy_number || 'N/A'}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1572,7 +1811,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         </CardContent>
       </Card>
     );
-  };
+  });
 
   if (loading) {
     return (
@@ -2156,7 +2395,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
             </CardContent>
           </Card>
 
-          {/* Coverage Sections */}
+          {/* Distribution Class and Member Status Coverage Sections */}
           <CoverageList 
             title="Distribution Class Coverages" 
             coverages={formData.distribution_class_coverages} 
@@ -2167,6 +2406,17 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
             title="Member Status Coverages" 
             coverages={formData.member_status_coverages} 
             type="member_status"
+          />
+        </div>
+      )}
+
+      {/* Health Coverage Tab */}
+      {activeTab === 'health-coverage' && (
+        <div className="grid gap-6">
+          <CoverageList 
+            title="Insurance Plan Coverages" 
+            coverages={formData.insurance_plan_coverages} 
+            type="insurance_plan"
           />
         </div>
       )}
@@ -2320,18 +2570,35 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Start Date
                             </label>
-                            <p className="text-sm text-gray-600">
-                              {dependentCoverage.start_date ? new Date(dependentCoverage.start_date).toLocaleDateString() : 'N/A'}
-                            </p>
+                            {isEditMode ? (
+                              <Input
+                                type="date"
+                                value={dependentCoverage.start_date ? dependentCoverage.start_date.split('T')[0] : ''}
+                                onChange={(e) => updateDependentCoverage(index, 'start_date', e.target.value)}
+                              />
+                            ) : (
+                              <p className="text-sm text-gray-600">
+                                {dependentCoverage.start_date ? new Date(dependentCoverage.start_date).toLocaleDateString() : 'N/A'}
+                              </p>
+                            )}
                           </div>
                           
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               End Date
                             </label>
-                            <p className="text-sm text-gray-600">
-                              {dependentCoverage.end_date ? new Date(dependentCoverage.end_date).toLocaleDateString() : 'Active'}
-                            </p>
+                            {isEditMode ? (
+                              <Input
+                                type="date"
+                                value={dependentCoverage.end_date ? dependentCoverage.end_date.split('T')[0] : ''}
+                                onChange={(e) => updateDependentCoverage(index, 'end_date', e.target.value || undefined)}
+                                placeholder="Leave empty for active coverage"
+                              />
+                            ) : (
+                              <p className="text-sm text-gray-600">
+                                {dependentCoverage.end_date ? new Date(dependentCoverage.end_date).toLocaleDateString() : ''}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2484,7 +2751,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                               End Date
                             </label>
                             <p className="text-sm text-gray-600">
-                              {employerCoverage.end_date ? new Date(employerCoverage.end_date).toLocaleDateString() : 'Active'}
+                              {employerCoverage.end_date ? new Date(employerCoverage.end_date).toLocaleDateString() : ''}
                             </p>
                           </div>
                         </div>
@@ -2498,174 +2765,6 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      {/* Health Coverage Tab */}
-      {activeTab === 'health-coverage' && (
-        <div className="grid gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Health Coverage</CardTitle>
-              {isEditMode && (
-                <Button 
-                  onClick={addInsurancePlan}
-                  size="sm"
-                  className="bg-union-600 hover:bg-union-700 text-white"
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Add Insurance Plan
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {formData.insurance_plan_coverages.length === 0 ? (
-                <p className="text-gray-500 text-sm">No insurance plans found</p>
-              ) : (
-                formData.insurance_plan_coverages.map((planCoverage, index) => {
-                  const plan = planCoverage.insurance_plan;
-                  return (
-                    <div key={planCoverage.id || index} className="border rounded-lg p-6 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {plan.name || 'Unnamed Insurance Plan'}
-                        </h3>
-                        {isEditMode && (
-                          <Button 
-                            onClick={() => removeInsurancePlan(index)}
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Plan Name
-                          </label>
-                          <Input
-                            value={plan.name}
-                            onChange={(e) => updateInsurancePlan(index, 'name', e.target.value)}
-                            disabled={!isEditMode}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Plan Code
-                          </label>
-                          <Input
-                            value={plan.code}
-                            onChange={(e) => updateInsurancePlan(index, 'code', e.target.value)}
-                            disabled={!isEditMode}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Plan Type
-                          </label>
-                          <Select 
-                            value={plan.type} 
-                            onValueChange={(value) => updateInsurancePlan(index, 'type', value)}
-                            disabled={!isEditMode}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="HEALTH">Health</SelectItem>
-                              <SelectItem value="DENTAL">Dental</SelectItem>
-                              <SelectItem value="VISION">Vision</SelectItem>
-                              <SelectItem value="OTHER">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Group Number
-                          </label>
-                          <Input
-                            value={plan.group}
-                            onChange={(e) => updateInsurancePlan(index, 'group', e.target.value)}
-                            disabled={!isEditMode}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Policy Number
-                          </label>
-                          <Input
-                            value={planCoverage.policy_number}
-                            onChange={(e) => updateInsurancePlan(index, 'policy_number', e.target.value)}
-                            disabled={!isEditMode}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Insurance Company ID
-                          </label>
-                          <Input
-                            type="number"
-                            value={plan.insurance_plan_company_id || ''}
-                            onChange={(e) => updateInsurancePlan(index, 'insurance_plan_company_id', e.target.value ? parseInt(e.target.value) : undefined)}
-                            disabled={!isEditMode}
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* Checkbox Field */}
-                      <div className="pt-4 border-t border-gray-200">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`plan-include-cms-${index}`}
-                            checked={plan.include_cms}
-                            onCheckedChange={(checked) => updateInsurancePlan(index, 'include_cms', checked)}
-                            disabled={!isEditMode}
-                          />
-                          <Label 
-                            htmlFor={`plan-include-cms-${index}`} 
-                            className="text-sm font-medium text-gray-700 cursor-pointer"
-                          >
-                            Include in CMS Report
-                          </Label>
-                        </div>
-                      </div>
-                      
-                      <div className="border-t pt-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Coverage Period</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Start Date
-                            </label>
-                            <p className="text-sm text-gray-600">
-                              {planCoverage.start_date ? new Date(planCoverage.start_date).toLocaleDateString() : 'N/A'}
-                            </p>
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              End Date
-                            </label>
-                            <p className="text-sm text-gray-600">
-                              {planCoverage.end_date ? new Date(planCoverage.end_date).toLocaleDateString() : 'Active'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       {/* Notes Tab */}
       {activeTab === 'notes' && (

@@ -185,6 +185,9 @@ class AuthenticatedBackendApiClient extends ApiClient {
   memberStatuses!: {
     list: () => Promise<any[]>;
   };
+  insurancePlans!: {
+    list: () => Promise<any[]>;
+  };
 
   constructor(baseURL: string) {
     super(baseURL);
@@ -311,10 +314,45 @@ class AuthenticatedBackendApiClient extends ApiClient {
   }
 
   async put<T>(endpoint: string, data?: any): Promise<T> {
-    return this.request<T>(endpoint, {
+    // Add debugging for member updates
+    if (endpoint.includes('/api/v1/members/') && data) {
+      console.log('**** API CLIENT PUT REQUEST ****', {
+        endpoint,
+        hasBody: !!data,
+        bodySize: data ? JSON.stringify(data).length : 0,
+        dependentCoverages: data.dependent_coverages ? {
+          count: data.dependent_coverages.length,
+          data: data.dependent_coverages
+        } : 'NOT INCLUDED'
+      });
+    }
+    
+    const result = this.request<T>(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined,
     });
+    
+    // Add debugging for member updates response
+    if (endpoint.includes('/api/v1/members/')) {
+      result.then(
+        (response) => {
+          console.log('**** API CLIENT PUT RESPONSE SUCCESS ****', {
+            endpoint,
+            response
+          });
+          return response;
+        },
+        (error) => {
+          console.log('**** API CLIENT PUT RESPONSE ERROR ****', {
+            endpoint,
+            error
+          });
+          throw error;
+        }
+      );
+    }
+    
+    return result;
   }
 
   async delete<T>(endpoint: string): Promise<T> {
@@ -526,6 +564,13 @@ class AuthenticatedBackendApiClient extends ApiClient {
     this.memberStatuses = {
       list: () =>
         this.get<any[]>('/api/v1/member_statuses'),
+    };
+    
+    this.insurancePlans = {
+      list: () => {
+        // Use skip/limit to get all plans - set limit to 1000
+        return this.get<any[]>('/api/v1/insurance_plans', { skip: 0, limit: 1000 });
+      },
     };
   }
   

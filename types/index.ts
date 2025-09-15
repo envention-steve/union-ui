@@ -106,6 +106,24 @@ export interface LifeInsuranceCoverage extends BaseCoverage {
   life_insurance_person_id?: number;
 }
 
+export interface InsurancePlan {
+  id: number;
+  name: string;
+  code: string;
+  type: 'HEALTH' | 'DENTAL' | 'VISION' | 'OTHER';
+  group: string;
+  include_cms: boolean;
+  insurance_plan_company_id?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface InsurancePlanCoverage extends BaseCoverage {
+  insurance_plan_id: number;
+  policy_number: string;
+  insurance_plan?: InsurancePlan;
+}
+
 // Dependent types
 export interface Dependent {
   id: number;
@@ -162,6 +180,7 @@ export interface Member {
   distribution_class_coverages?: DistributionClassCoverage[];
   member_status_coverages?: MemberStatusCoverage[];
   life_insurance_coverages?: LifeInsuranceCoverage[];
+  insurance_plan_coverages?: InsurancePlanCoverage[];
 }
 
 export type EmploymentStatus = 
