@@ -19,7 +19,18 @@ interface BusinessEndpoints {
   }) => Promise<{ items: any[]; total: number; offset: number; limit: number }>;
   create: (data: any) => Promise<any>;
   update: (id: string, data: any) => Promise<any>;
+  updateWithNested?: (id: string, data: any) => Promise<any>;
   delete: (id: string) => Promise<{ message: string }>;
+  // Employer-specific methods
+  getRates?: (id: string) => Promise<any[]>;
+  createRate?: (id: string, data: any) => Promise<any>;
+  updateRate?: (id: string, rateId: string, data: any) => Promise<any>;
+  deleteRate?: (id: string, rateId: string) => Promise<any>;
+  getNotes?: (id: string) => Promise<any[]>;
+  createNote?: (id: string, data: any) => Promise<any>;
+  updateNote?: (id: string, noteId: string, data: any) => Promise<any>;
+  deleteNote?: (id: string, noteId: string) => Promise<any>;
+  getMembers?: (id: string, params?: { page?: number; limit?: number; search?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
 }
 
 interface DashboardEndpoints {
@@ -174,6 +185,7 @@ class AuthApiClient extends ApiClient {
 class AuthenticatedBackendApiClient extends ApiClient {
   benefits!: BusinessEndpoints;
   members!: BusinessEndpoints;
+  employers!: BusinessEndpoints;
   plans!: BusinessEndpoints;
   dashboard!: DashboardEndpoints;
   ledgerEntries!: {
@@ -186,6 +198,9 @@ class AuthenticatedBackendApiClient extends ApiClient {
     list: () => Promise<any[]>;
   };
   insurancePlans!: {
+    list: () => Promise<any[]>;
+  };
+  employerTypes!: {
     list: () => Promise<any[]>;
   };
 
@@ -493,6 +508,143 @@ class AuthenticatedBackendApiClient extends ApiClient {
       },
     };
 
+    this.employers = {
+      list: async (params?: { page?: number; limit?: number; search?: string }) => {
+        const queryParams: Record<string, any> = {};
+        
+        // Handle pagination - FastAPI uses skip/limit instead of page
+        if (params?.page !== undefined && params?.limit !== undefined) {
+          queryParams.skip = (params.page - 1) * params.limit;
+          queryParams.limit = params.limit;
+        } else {
+          queryParams.limit = 25; // Default limit
+        }
+        
+        // Add other params
+        if (params?.search) {
+          queryParams.search = params.search;
+        }
+        
+        const response = await this.get<any[]>('/api/v1/employers', queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        
+        // Extract pagination info from headers
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+        
+        return {
+          items: response,
+          total,
+          page: params?.page || 1,
+          limit: params?.limit || 25
+        };
+      },
+      
+      get: (id: string) =>
+        this.get<any>(`/api/v1/employers/${id}`),
+      
+      getDetails: (id: string) =>
+        this.get<any>(`/api/v1/employers/${id}/details`),
+      
+      create: (data: any) =>
+        this.post<any>('/api/v1/employers', data),
+      
+      update: (id: string, data: any) =>
+        this.put<any>(`/api/v1/employers/${id}`, data),
+      
+      updateWithNested: (id: string, data: any) =>
+        this.put<any>(`/api/v1/employers/${id}`, data),
+      
+      delete: (id: string) =>
+        this.delete<any>(`/api/v1/employers/${id}`),
+      
+      // Employer rates endpoints
+      getRates: (id: string) =>
+        this.get<any[]>(`/api/v1/employers/${id}/employer_rates`),
+      
+      createRate: (id: string, data: any) =>
+        this.post<any>(`/api/v1/employers/${id}/employer_rates`, data),
+      
+      updateRate: (id: string, rateId: string, data: any) =>
+        this.put<any>(`/api/v1/employer_rates/${rateId}`, data),
+      
+      deleteRate: (id: string, rateId: string) =>
+        this.delete<any>(`/api/v1/employer_rates/${rateId}`),
+      
+      // Employer notes endpoints
+      getNotes: (id: string) =>
+        this.get<any[]>(`/api/v1/employers/${id}/employer_notes`),
+      
+      createNote: (id: string, data: any) =>
+        this.post<any>(`/api/v1/employers/${id}/employer_notes`, data),
+      
+      updateNote: (id: string, noteId: string, data: any) =>
+        this.put<any>(`/api/v1/employer_notes/${noteId}`, data),
+      
+      deleteNote: (id: string, noteId: string) =>
+        this.delete<any>(`/api/v1/employer_notes/${noteId}`),
+      
+      // Employer members endpoints
+      getMembers: async (id: string, params?: { page?: number; limit?: number; search?: string }) => {
+        const queryParams: Record<string, any> = {};
+        
+        // Handle pagination
+        if (params?.page !== undefined && params?.limit !== undefined) {
+          queryParams.skip = (params.page - 1) * params.limit;
+          queryParams.limit = params.limit;
+        } else {
+          queryParams.limit = 25; // Default limit
+        }
+        
+        // Add search
+        if (params?.search) {
+          queryParams.search = params.search;
+        }
+        
+        const response = await this.get<any[]>(`/api/v1/employers/${id}/members`, queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+        
+        return {
+          items: response,
+          total,
+          page: params?.page || 1,
+          limit: params?.limit || 25
+        };
+      },
+      
+      // Employer ledger entries endpoints
+      getLedgerEntries: async (id: string, params?: {
+        offset?: number;
+        limit?: number;
+        account_type?: 'HEALTH' | 'ANNUITY';
+        entry_type?: string;
+        start_date?: string;
+        end_date?: string;
+      }) => {
+        const queryParams: Record<string, any> = {};
+        
+        if (params?.offset !== undefined) queryParams.skip = params.offset;
+        if (params?.limit !== undefined) queryParams.limit = params.limit;
+        if (params?.account_type) queryParams.account_type = params.account_type;
+        if (params?.entry_type) queryParams.entry_type = params.entry_type;
+        if (params?.start_date) queryParams.start_date = params.start_date;
+        if (params?.end_date) queryParams.end_date = params.end_date;
+        
+        const response = await this.get<any[]>(`/api/v1/employers/${id}/ledger_entries`, queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+        
+        return {
+          items: response,
+          total,
+          offset: params?.offset || 0,
+          limit: params?.limit || 25
+        };
+      },
+    };
+
     this.plans = {
       list: async (params?: { page?: number; limit?: number; search?: string }) => {
         const queryParams: Record<string, any> = {};
@@ -570,6 +722,13 @@ class AuthenticatedBackendApiClient extends ApiClient {
       list: () => {
         // Use skip/limit to get all plans - set limit to 1000
         return this.get<any[]>('/api/v1/insurance_plans', { skip: 0, limit: 1000 });
+      },
+    };
+    
+    this.employerTypes = {
+      list: () => {
+        // Use skip/limit to get all employer types - set limit to 1000
+        return this.get<any[]>('/api/v1/employer_types', { skip: 0, limit: 1000 });
       },
     };
   }

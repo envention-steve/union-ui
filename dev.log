@@ -1,0 +1,242 @@
+
+> union-ui@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.2
+   - Local:        http://localhost:3000
+   - Network:      http://10.255.255.254:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1240ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled /middleware in 198ms (188 modules)
+Failed to get session from request: Error: Invalid session token: "exp" claim timestamp check failed
+    at verifySessionToken (lib/session.ts:48:11)
+    at async getSessionFromRequest (lib/session.ts:94:12)
+    at async middleware (middleware.ts:24:23)
+  46 |     return payload as unknown as SessionData;
+  47 |   } catch (error) {
+> 48 |     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     |           ^
+  49 |   }
+  50 | }
+  51 | {
+  
+}
+[MIDDLEWARE] No valid session for /dashboard/members/5, redirecting to login
+Failed to get session from request: Error: Invalid session token: "exp" claim timestamp check failed
+    at verifySessionToken (lib/session.ts:48:11)
+    at async getSessionFromRequest (lib/session.ts:94:12)
+    at async middleware (middleware.ts:49:23)
+  46 |     return payload as unknown as SessionData;
+  47 |   } catch (error) {
+> 48 |     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     |           ^
+  49 |   }
+  50 | }
+  51 | {
+  
+}
+ ○ Compiling /login ...
+ ✓ Compiled /login in 1144ms (890 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /login?callbackUrl=%2Fdashboard%2Fmembers%2F5 200 in 1440ms
+Failed to get session from request: Error: Invalid session token: "exp" claim timestamp check failed
+    at verifySessionToken (lib/session.ts:48:11)
+    at async getSessionFromRequest (lib/session.ts:94:12)
+    at async middleware (middleware.ts:24:23)
+  46 |     return payload as unknown as SessionData;
+  47 |   } catch (error) {
+> 48 |     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     |           ^
+  49 |   }
+  50 | }
+  51 | {
+  
+}
+[MIDDLEWARE] No valid session for /dashboard/members/5, redirecting to login
+Failed to get session from request: Error: Invalid session token: "exp" claim timestamp check failed
+    at verifySessionToken (lib/session.ts:48:11)
+    at async getSessionFromRequest (lib/session.ts:94:12)
+    at async middleware (middleware.ts:49:23)
+  46 |     return payload as unknown as SessionData;
+  47 |   } catch (error) {
+> 48 |     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     |           ^
+  49 |   }
+  50 | }
+  51 | {
+  
+}
+ GET /login?callbackUrl=%2Fdashboard%2Fmembers%2F5 200 in 134ms
+ ✓ Compiled /api/auth/me in 186ms (514 modules)
+ ✓ Compiled in 225ms (394 modules)
+Failed to get session from request: Error: Invalid session token: "exp" claim timestamp check failed
+    at verifySessionToken (lib/session.ts:48:11)
+    at async getSessionFromRequest (lib/session.ts:94:12)
+    at async middleware (middleware.ts:24:23)
+  46 |     return payload as unknown as SessionData;
+  47 |   } catch (error) {
+> 48 |     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     |           ^
+  49 |   }
+  50 | }
+  51 | {
+  
+}
+[MIDDLEWARE] No valid session for /dashboard/members/5, redirecting to login
+ GET /favicon.ico 200 in 589ms
+Failed to get server session: Error: Invalid session token: "exp" claim timestamp check failed
+    at verifySessionToken (lib/session.ts:48:11)
+    at async getServerSession (lib/session.ts:75:12)
+    at async GET (app/api/auth/me/route.ts:7:21)
+  46 |     return payload as unknown as SessionData;
+  47 |   } catch (error) {
+> 48 |     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     |           ^
+  49 |   }
+  50 | }
+  51 |
+ GET /api/auth/me 401 in 528ms
+Failed to get session from request: Error: Invalid session token: "exp" claim timestamp check failed
+    at verifySessionToken (lib/session.ts:48:11)
+    at async getSessionFromRequest (lib/session.ts:94:12)
+    at async middleware (middleware.ts:49:23)
+  46 |     return payload as unknown as SessionData;
+  47 |   } catch (error) {
+> 48 |     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     |           ^
+  49 |   }
+  50 | }
+  51 | {
+  
+}
+Failed to get server session: Error: Invalid session token: "exp" claim timestamp check failed
+    at verifySessionToken (lib/session.ts:48:11)
+    at async getServerSession (lib/session.ts:75:12)
+    at async GET (app/api/auth/me/route.ts:7:21)
+  46 |     return payload as unknown as SessionData;
+  47 |   } catch (error) {
+> 48 |     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     |           ^
+  49 |   }
+  50 | }
+  51 |
+ GET /api/auth/me 401 in 52ms
+ GET /login?callbackUrl=%2Fdashboard%2Fmembers%2F5 200 in 114ms
+Failed to get session from request: Error: Invalid session token: "exp" claim timestamp check failed
+    at verifySessionToken (lib/session.ts:48:11)
+    at async getSessionFromRequest (lib/session.ts:94:12)
+    at async middleware (middleware.ts:49:23)
+  46 |     return payload as unknown as SessionData;
+  47 |   } catch (error) {
+> 48 |     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     |           ^
+  49 |   }
+  50 | }
+  51 | {
+  
+}
+ GET /login?callbackUrl=%2Fdashboard%2Fmembers%2F5 200 in 25ms
+ ✓ Compiled in 205ms (394 modules)
+Failed to get session from request: Error: Invalid session token: "exp" claim timestamp check failed
+    at verifySessionToken (lib/session.ts:48:11)
+    at async getSessionFromRequest (lib/session.ts:94:12)
+    at async middleware (middleware.ts:49:23)
+  46 |     return payload as unknown as SessionData;
+  47 |   } catch (error) {
+> 48 |     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     |           ^
+  49 |   }
+  50 | }
+  51 | {
+  
+}
+ GET /login?callbackUrl=%2Fdashboard%2Fmembers%2F5 200 in 33ms
+ ✓ Compiled in 126ms (394 modules)
+Failed to get session from request: Error: Invalid session token: "exp" claim timestamp check failed
+    at verifySessionToken (lib/session.ts:48:11)
+    at async getSessionFromRequest (lib/session.ts:94:12)
+    at async middleware (middleware.ts:49:23)
+  46 |     return payload as unknown as SessionData;
+  47 |   } catch (error) {
+> 48 |     throw new Error(`Invalid session token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     |           ^
+  49 |   }
+  50 | }
+  51 | {
+  
+}
+ GET /login?callbackUrl=%2Fdashboard%2Fmembers%2F5 200 in 23ms
+ ✓ Compiled /api/auth/login in 226ms (971 modules)
+ POST /api/auth/login 200 in 376ms
+ ✓ Compiled /api/auth/token in 164ms (973 modules)
+ GET /api/auth/token 200 in 223ms
+[MIDDLEWARE] Valid session found for /dashboard/members/5
+ ○ Compiling /dashboard/members/[id] ...
+ ✓ Compiled /dashboard/members/[id] in 1167ms (1282 modules)
+ ✓ Compiled /api/auth/me in 129ms (770 modules)
+ GET /api/auth/me 200 in 192ms
+ ⨯ [Error: Cannot find module './vendor-chunks/@tanstack.js'
+Require stack:
+- /home/lister/envention/union-ui/.next/server/webpack-runtime.js
+- /home/lister/envention/union-ui/.next/server/app/dashboard/members/[id]/page.js
+- /home/lister/envention/union-ui/node_modules/next/dist/server/require.js
+- /home/lister/envention/union-ui/node_modules/next/dist/server/load-components.js
+- /home/lister/envention/union-ui/node_modules/next/dist/build/utils.js
+- /home/lister/envention/union-ui/node_modules/next/dist/server/dev/static-paths-worker.js
+- /home/lister/envention/union-ui/node_modules/next/dist/compiled/jest-worker/processChild.js] {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/dashboard/members/5'
+}
+ GET /api/auth/me 200 in 44ms
+ GET /api/auth/token 200 in 53ms
+ GET /api/auth/token 200 in 97ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 1024ms (1624 modules)
+ GET /dashboard/members/5 500 in 2991ms
+[MIDDLEWARE] Valid session found for /dashboard/members/5
+ ⨯ [Error: Cannot find module './vendor-chunks/@tanstack.js'
+Require stack:
+- /home/lister/envention/union-ui/.next/server/webpack-runtime.js
+- /home/lister/envention/union-ui/.next/server/app/dashboard/members/[id]/page.js
+- /home/lister/envention/union-ui/node_modules/next/dist/server/require.js
+- /home/lister/envention/union-ui/node_modules/next/dist/server/load-components.js
+- /home/lister/envention/union-ui/node_modules/next/dist/build/utils.js
+- /home/lister/envention/union-ui/node_modules/next/dist/server/dev/static-paths-worker.js
+- /home/lister/envention/union-ui/node_modules/next/dist/compiled/jest-worker/processChild.js] {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/dashboard/members/5'
+}
+ GET /dashboard/members/5 500 in 513ms
+[MIDDLEWARE] Valid session found for /dashboard/members/5
+ ⨯ [Error: Cannot find module './vendor-chunks/@tanstack.js'
+Require stack:
+- /home/lister/envention/union-ui/.next/server/webpack-runtime.js
+- /home/lister/envention/union-ui/.next/server/app/dashboard/members/[id]/page.js
+- /home/lister/envention/union-ui/node_modules/next/dist/server/require.js
+- /home/lister/envention/union-ui/node_modules/next/dist/server/load-components.js
+- /home/lister/envention/union-ui/node_modules/next/dist/build/utils.js
+- /home/lister/envention/union-ui/node_modules/next/dist/server/dev/static-paths-worker.js
+- /home/lister/envention/union-ui/node_modules/next/dist/compiled/jest-worker/processChild.js] {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/dashboard/members/5'
+}
+ GET /dashboard/members/5 500 in 491ms
+[MIDDLEWARE] User with valid session accessing login, redirecting to dashboard
+[MIDDLEWARE] Valid session found for /dashboard
+ ✓ Compiled /dashboard in 341ms (1631 modules)
+ GET /dashboard 200 in 624ms
+ ✓ Compiled /favicon.ico in 195ms (965 modules)
+ GET /favicon.ico 200 in 234ms
+[MIDDLEWARE] Valid session found for /dashboard
+ GET /dashboard 200 in 203ms
+ GET /favicon.ico 200 in 10ms
+[?25h

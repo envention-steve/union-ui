@@ -623,6 +623,17 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         fund_balances: response.fund_balances,
       };
       
+      console.log('******* MEMBER DATA LOADED FROM API *******', {
+        memberId: response.id,
+        apiMemberNotes: response.member_notes,
+        apiMemberNotesCount: response.member_notes?.length || 0,
+        transformedMemberNotes: memberData.member_notes,
+        transformedMemberNotesCount: memberData.member_notes?.length || 0,
+        apiResponseKeys: Object.keys(response),
+        hasMemberNotesInResponse: 'member_notes' in response,
+        timestamp: new Date().toISOString()
+      });
+      
       setFormData(memberData);
       setOriginalData(memberData);
     } catch (err) {
@@ -647,6 +658,15 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleSave = async () => {
+    console.log('******* HANDLE SAVE STARTED *******', {
+      isEditMode,
+      formDataNotes: formData.member_notes,
+      originalDataNotes: originalData?.member_notes,
+      formDataNotesCount: formData.member_notes.length,
+      originalDataNotesCount: originalData?.member_notes?.length || 0,
+      timestamp: new Date().toISOString()
+    });
+    
     try {
       setSaving(true);
       setError(null);
@@ -862,6 +882,53 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         willIncludeInPayload: dependentCoveragesChanged && processedDependentCoverages
       });
 
+      // Only process member notes if they've actually been modified
+      const originalMemberNotes = originalData?.member_notes || [];
+      const memberNotesChanged = 
+        JSON.stringify(formData.member_notes) !== JSON.stringify(originalMemberNotes);
+      
+      console.log('******* MEMBER NOTES CHANGE DETECTION *******', {
+        originalMemberNotes,
+        formDataMemberNotes: formData.member_notes,
+        originalJSON: JSON.stringify(originalMemberNotes),
+        formDataJSON: JSON.stringify(formData.member_notes),
+        memberNotesChanged,
+        originalCount: originalMemberNotes.length,
+        formDataCount: formData.member_notes.length,
+        jsonStringsMatch: JSON.stringify(originalMemberNotes) === JSON.stringify(formData.member_notes),
+        originalNoteIds: originalMemberNotes.map(note => note.id),
+        formDataNoteIds: formData.member_notes.map(note => note.id),
+        timestamp: new Date().toISOString()
+      });
+      
+      const processedMemberNotes = memberNotesChanged ? formData.member_notes
+        .map(note => {
+          // Skip notes that don't have a message
+          if (!note.message || note.message.trim() === '') {
+            return null; // Will be filtered out below
+          }
+          
+          return {
+            ...(note.id && note.id > 0 && { id: note.id }),
+            member_id: parseInt(resolvedParams.id),
+            message: note.message.trim(),
+          };
+        })
+        .filter(note => note !== null) : [];
+
+      console.log('******* PROCESSED MEMBER NOTES *******', {
+        rawFormDataNotes: formData.member_notes,
+        rawFormDataNoteIds: formData.member_notes.map(note => note.id),
+        processedMemberNotes,
+        processedMemberNoteIds: processedMemberNotes.map(note => note.id || 'NO_ID'),
+        hasMemberNotesChanged: memberNotesChanged,
+        processedNotesCount: processedMemberNotes.length,
+        willIncludeInPayload: memberNotesChanged,
+        filteredOutCount: memberNotesChanged ? formData.member_notes.length - processedMemberNotes.length : 0,
+        notesWithEmptyMessages: formData.member_notes.filter(note => !note.message || note.message.trim() === ''),
+        timestamp: new Date().toISOString()
+      });
+
       // Note: We include all coverages (ending and new) in a single API call
       // The backend will handle updates vs creates based on the presence of IDs
 
@@ -921,6 +988,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       const hasMemberStatusCoverageChanges = memberStatusCoveragesChanged && processedMemberStatusCoverages.length > 0;
       const hasInsurancePlanCoverageChanges = insurancePlanCoveragesChanged && processedInsurancePlanCoverages.length > 0;
       const hasDependentCoverageChanges = dependentCoveragesChanged && processedDependentCoverages.length > 0;
+      const hasMemberNotesChanges = memberNotesChanged; // We want to include even empty arrays to handle note deletions
 
       // Single API call with all changes
       const updateData = {
@@ -937,24 +1005,56 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         ...(hasDependentCoverageChanges && {
           dependent_coverages: processedDependentCoverages
         }),
+        ...(hasMemberNotesChanges && {
+          member_notes: processedMemberNotes
+        }),
       };
       
       console.log('**** FINAL API PAYLOAD ****', {
         hasDependentCoverageChanges,
         processedDependentCoveragesLength: processedDependentCoverages.length,
+        hasMemberNotesChanges,
+        processedMemberNotesLength: processedMemberNotes.length,
         updateData,
-        dependentCoverages: updateData.dependent_coverages || 'NOT INCLUDED'
+        dependentCoverages: updateData.dependent_coverages || 'NOT INCLUDED',
+        memberNotes: updateData.member_notes || 'NOT INCLUDED'
+      });
+      
+      console.log('******* ABOUT TO CALL API *******', {
+        memberId: resolvedParams.id,
+        hasMemberNotesChanges,
+        updateDataHasMemberNotes: 'member_notes' in updateData,
+        updateDataMemberNotes: updateData.member_notes,
+        updateDataMemberNotesCount: updateData.member_notes?.length || 0,
+        fullUpdateData: updateData,
+        timestamp: new Date().toISOString()
       });
       
       const response = await backendApiClient.members.update(resolvedParams.id, updateData);
       
-      console.log('**** API UPDATE COMPLETED ****', {
+      console.log('******* API UPDATE COMPLETED *******', {
         response,
-        requestedDependentCoverages: updateData.dependent_coverages?.length || 0
+        requestedDependentCoverages: updateData.dependent_coverages?.length || 0,
+        requestedMemberNotes: updateData.member_notes?.length || 0,
+        responseStatus: response?.status || 'unknown',
+        responseMemberNotes: response?.member_notes,
+        apiCallSuccessful: true,
+        timestamp: new Date().toISOString()
       });
       
       // Refresh data from API to get updated nested info
+      console.log('******* REFRESHING MEMBER DATA AFTER SAVE *******', {
+        aboutToCallFetchMember: true,
+        timestamp: new Date().toISOString()
+      });
+      
       await fetchMember();
+      
+      console.log('******* MEMBER DATA REFRESHED AFTER SAVE *******', {
+        newFormDataNotes: formData.member_notes,
+        newFormDataNotesCount: formData.member_notes.length,
+        timestamp: new Date().toISOString()
+      });
       
       setHasUnsavedChanges(false);
       setSuccess('Member data saved successfully!');
@@ -964,6 +1064,12 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       
       router.push(`/dashboard/members/${resolvedParams.id}?mode=view`);
     } catch (err) {
+      console.log('******* ERROR SAVING MEMBER *******', {
+        error: err,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        errorStack: err instanceof Error ? err.stack : 'No stack trace',
+        timestamp: new Date().toISOString()
+      });
       console.error('Error saving member:', err);
       setError('Failed to save member data. Please try again.');
     } finally {
@@ -1214,31 +1320,102 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   }, []);
 
   const addNote = () => {
+    const now = new Date();
     const newNote: MemberNote = {
+      id: -Date.now(), // Use negative timestamp for temporary unique ID
       member_id: formData.id,
       message: '',
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
     };
     
-    setFormData(prev => ({
-      ...prev,
-      member_notes: [...prev.member_notes, newNote]
-    }));
+    console.log('******* ADD NOTE DEBUG *******', {
+      newNote,
+      currentNotes: formData.member_notes,
+      memberId: formData.id,
+      timestamp: new Date().toISOString()
+    });
+    
+    setFormData(prev => {
+      const updatedFormData = {
+        ...prev,
+        member_notes: [...prev.member_notes, newNote]
+      };
+      
+      console.log('******* ADD NOTE - FORM DATA UPDATED *******', {
+        previousNotesCount: prev.member_notes.length,
+        newNotesCount: updatedFormData.member_notes.length,
+        newFormDataNotes: updatedFormData.member_notes,
+        timestamp: new Date().toISOString()
+      });
+      
+      return updatedFormData;
+    });
   };
 
   const removeNote = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      member_notes: prev.member_notes.filter((_, i) => i !== index)
-    }));
+    console.log('******* REMOVE NOTE DEBUG *******', {
+      index,
+      noteBeingRemoved: formData.member_notes[index],
+      currentNotes: formData.member_notes,
+      currentNotesCount: formData.member_notes.length,
+      timestamp: new Date().toISOString()
+    });
+    
+    setFormData(prev => {
+      const noteToRemove = prev.member_notes[index];
+      const updatedNotes = prev.member_notes.filter((_, i) => i !== index);
+      
+      const updatedFormData = {
+        ...prev,
+        member_notes: updatedNotes
+      };
+      
+      console.log('******* REMOVE NOTE - FORM DATA UPDATED *******', {
+        index,
+        noteRemoved: noteToRemove,
+        previousNotesCount: prev.member_notes.length,
+        newNotesCount: updatedFormData.member_notes.length,
+        newFormDataNotes: updatedFormData.member_notes,
+        timestamp: new Date().toISOString()
+      });
+      
+      return updatedFormData;
+    });
   };
 
   const updateNote = (index: number, field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      member_notes: prev.member_notes.map((note, i) => 
+    console.log('******* UPDATE NOTE DEBUG *******', {
+      index,
+      field,
+      value,
+      currentNotes: formData.member_notes,
+      noteBeingUpdated: formData.member_notes[index],
+      timestamp: new Date().toISOString()
+    });
+    
+    setFormData(prev => {
+      const updatedNotes = prev.member_notes.map((note, i) => 
         i === index ? { ...note, [field]: value } : note
-      )
-    }));
+      );
+      
+      const updatedFormData = {
+        ...prev,
+        member_notes: updatedNotes
+      };
+      
+      console.log('******* UPDATE NOTE - FORM DATA UPDATED *******', {
+        index,
+        field,
+        value,
+        previousNote: prev.member_notes[index],
+        updatedNote: updatedNotes[index],
+        allUpdatedNotes: updatedNotes,
+        timestamp: new Date().toISOString()
+      });
+      
+      return updatedFormData;
+    });
   };
 
   // Distribution Class Coverage management functions
@@ -1476,6 +1653,29 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       setExpandedEntries(new Set());
     }
   }, [activeTab]);
+  
+  // Log notes tab rendering
+  useEffect(() => {
+    if (activeTab === 'notes') {
+      console.log('******* NOTES TAB RENDERING *******', {
+        activeTab,
+        isEditMode,
+        notesCount: formData.member_notes.length,
+        notes: formData.member_notes,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [activeTab, formData.member_notes, isEditMode]);
+  
+  // Track all member_notes changes
+  useEffect(() => {
+    console.log('******* MEMBER NOTES STATE CHANGED *******', {
+      notesCount: formData.member_notes.length,
+      noteIds: formData.member_notes.map(note => note.id),
+      notes: formData.member_notes,
+      timestamp: new Date().toISOString()
+    });
+  }, [formData.member_notes]);
 
   // Coverage display component
   const CoverageList = React.memo(({ 
@@ -1812,6 +2012,8 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       </Card>
     );
   });
+  
+  CoverageList.displayName = 'CoverageList';
 
   if (loading) {
     return (

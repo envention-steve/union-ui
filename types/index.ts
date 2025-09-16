@@ -368,6 +368,114 @@ export interface NavItem {
   external?: boolean;
 }
 
+// Employer types
+export interface Employer {
+  id: number;
+  name: string;
+  tax_id?: string;
+  employer_type_id?: number;
+  include_cms: boolean;
+  is_forced_distribution: boolean;
+  force_distribution_class_id?: number;
+  created_at?: string;
+  updated_at?: string;
+  // Additional computed fields for the UI
+  member_count?: number; // From relationships
+  employer_type?: EmployerType; // From relationships
+  members?: Member[]; // Members with active coverage for this employer
+}
+
+// Employer Type interface
+export interface EmployerType {
+  id: number;
+  name: string;
+  description?: string;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Employer Rate types
+export interface EmployerRate {
+  id?: number;
+  employer_id: number;
+  name: string;
+  contribution_rate: number | string; // Can be number (frontend) or string (backend Decimal)
+  enabled: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Employer Note types
+export interface EmployerNote {
+  id?: number;
+  employer_id: number;
+  message: string;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+}
+
+// Employer Ledger Entry types
+export interface EmployerLedgerEntry {
+  id: number;
+  employer_id: number;
+  account_id: number;
+  type: string;
+  amount: number;
+  posted_date: string;
+  posted: boolean;
+  suspended: boolean;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+  account?: {
+    id: number;
+    type: 'HEALTH' | 'ANNUITY';
+  };
+}
+
+// Employee Ledger (Contribution Batch) types
+export interface MemberBasicInfo {
+  id: number;
+  unique_id: string;
+  first_name: string;
+  last_name: string;
+  full_name?: string;
+}
+
+export interface EmployerRateBasicInfo {
+  id: number;
+  name: string;
+  contribution_rate: number;
+}
+
+export interface EmployerContributionWithMember {
+  id: number;
+  amount: number;
+  hours: number;
+  member: MemberBasicInfo;
+  employer_rate: EmployerRateBasicInfo;
+}
+
+export interface EmployerContributionBatch {
+  id: number;
+  received_date: string;
+  period_start?: string;
+  period_end?: string;
+  period_year_end?: string;
+  amount_received: number;
+  posted: boolean;
+  suspended: boolean;
+  employer_contributions: EmployerContributionWithMember[];
+  total_hours: number;
+}
+
+// Update Employer interface to include contribution batches
+export interface EmployerWithContributions extends Employer {
+  employer_contribution_batches?: EmployerContributionBatch[];
+}
+
 // Theme types
 export type Theme = 'light' | 'dark' | 'system';
 

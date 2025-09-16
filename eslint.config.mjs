@@ -17,10 +17,7 @@ const eslintConfig = [
       "@typescript-eslint/no-unused-vars": "warn",
       "react/no-unescaped-entities": "warn",
     },
-  },
-];
-
-export default eslintConfig;
+    ignores: [
       ".next/**",
       "out/**",
       "build/**",

@@ -33,6 +33,8 @@ const customJestConfig = {
   moduleNameMapper: {
     // Handle module aliases
     '^@/(.*)$': '<rootDir>/$1',
+    // Mock jose library ESM
+    '^jose$': '<rootDir>/__mocks__/jose.js',
   },
   testPathIgnorePatterns: ['<rootDir>/__tests__/e2e/'],
 }
