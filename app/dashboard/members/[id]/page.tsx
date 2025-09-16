@@ -1181,6 +1181,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     const now = new Date();
     const todayDateISO = new Date(now.toISOString().split('T')[0] + 'T00:00:00.000Z').toISOString();
     const newDependentCoverage: DependentCoverage = {
+      id: -Date.now(), // Use negative timestamp for temporary unique ID
       start_date: todayDateISO,
       member_id: formData.id,
       dependent_id: 0, // Will be set by API
@@ -1738,6 +1739,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
               onClick={addDistributionClassCoverage}
               size="sm"
               className="bg-union-600 hover:bg-union-700 text-white"
+              aria-label="Add Distribution Class Coverage"
             >
               <Plus className="mr-1 h-4 w-4" />
               Add Coverage
@@ -1748,6 +1750,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
               onClick={addMemberStatusCoverage}
               size="sm"
               className="bg-union-600 hover:bg-union-700 text-white"
+              aria-label="Add Member Status Coverage"
             >
               <Plus className="mr-1 h-4 w-4" />
               Add Coverage
@@ -1758,6 +1761,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
               onClick={addInsurancePlanCoverage}
               size="sm"
               className="bg-union-600 hover:bg-union-700 text-white"
+              aria-label="Add Insurance Plan Coverage"
             >
               <Plus className="mr-1 h-4 w-4" />
               Add Coverage
@@ -2017,7 +2021,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6" data-testid="loading">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 bg-gray-200 rounded-full animate-pulse"></div>
           <div className="h-8 bg-gray-200 rounded animate-pulse w-64"></div>
@@ -2066,6 +2070,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
             variant="ghost" 
             onClick={handleBackToList}
             className="hover:bg-gray-100"
+            aria-label="Back to members list"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -2186,10 +2191,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                 <div></div> {/* Empty space for grid layout */}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="member-first-name" className="block text-sm font-medium text-gray-700 mb-1">
                     First Name
                   </label>
                   <Input
+                    id="member-first-name"
                     value={formData.first_name}
                     onChange={(e) => handleInputChange('first_name', e.target.value)}
                     disabled={!isEditMode}
@@ -2208,10 +2214,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="member-last-name" className="block text-sm font-medium text-gray-700 mb-1">
                     Last Name
                   </label>
                   <Input
+                    id="member-last-name"
                     value={formData.last_name}
                     onChange={(e) => handleInputChange('last_name', e.target.value)}
                     disabled={!isEditMode}
@@ -2382,10 +2389,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div className="md:col-span-2 lg:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label htmlFor={`address-street1-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                           Street Address 1
                         </label>
                         <Input
+                          id={`address-street1-${index}`}
                           value={address.street1}
                           onChange={(e) => updateAddress(index, 'street1', e.target.value)}
                           disabled={!isEditMode}
@@ -2486,10 +2494,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label htmlFor={`phone-number-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                           Phone Number
                         </label>
                         <Input
+                          id={`phone-number-${index}`}
                           value={phone.number}
                           onChange={(e) => updatePhoneNumber(index, 'number', e.target.value)}
                           disabled={!isEditMode}
@@ -2568,10 +2577,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label htmlFor={`email-address-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                           Email Address
                         </label>
                         <Input
+                          id={`email-address-${index}`}
                           type="email"
                           value={email.email}
                           onChange={(e) => updateEmailAddress(index, 'email', e.target.value)}
@@ -2678,10 +2688,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor={`dependent-${index}-first-name`} className="block text-sm font-medium text-gray-700 mb-1">
                             First Name
                           </label>
                           <Input
+                            id={`dependent-${index}-first-name`}
                             value={dependent.first_name}
                             onChange={(e) => updateDependent(index, 'first_name', e.target.value)}
                             disabled={!isEditMode}
@@ -2689,10 +2700,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                         </div>
                         
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor={`dependent-${index}-middle-name`} className="block text-sm font-medium text-gray-700 mb-1">
                             Middle Name
                           </label>
                           <Input
+                            id={`dependent-${index}-middle-name`}
                             value={dependent.middle_name || ''}
                             onChange={(e) => updateDependent(index, 'middle_name', e.target.value)}
                             disabled={!isEditMode}
@@ -2700,10 +2712,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                         </div>
                         
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor={`dependent-${index}-last-name`} className="block text-sm font-medium text-gray-700 mb-1">
                             Last Name
                           </label>
                           <Input
+                            id={`dependent-${index}-last-name`}
                             value={dependent.last_name}
                             onChange={(e) => updateDependent(index, 'last_name', e.target.value)}
                             disabled={!isEditMode}
@@ -3005,10 +3018,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                         </div>
                         
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor={`note-message-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                             Message
                           </label>
                           <Textarea
+                            id={`note-message-${index}`}
                             value={note.message}
                             onChange={(e) => updateNote(index, 'message', e.target.value)}
                             disabled={!isEditMode}

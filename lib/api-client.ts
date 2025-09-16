@@ -200,6 +200,7 @@ class AuthenticatedBackendApiClient extends ApiClient {
   insurancePlans!: {
     list: (params?: { page?: number; limit?: number; search?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
     get: (id: string) => Promise<any>;
+    getDetails: (id: string) => Promise<any>;
     create: (data: any) => Promise<any>;
     update: (id: string, data: any) => Promise<any>;
     delete: (id: string) => Promise<{ message: string }>;
@@ -755,6 +756,9 @@ class AuthenticatedBackendApiClient extends ApiClient {
       
       get: (id: string) =>
         this.get<any>(`/api/v1/insurance_plans/${id}`),
+      
+      getDetails: (id: string) =>
+        this.get<any>(`/api/v1/insurance_plans/${id}/details`),
       
       create: (data: any) =>
         this.post<any>('/api/v1/insurance_plans', data),

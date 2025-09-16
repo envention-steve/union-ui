@@ -284,7 +284,7 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
 
   // Fetch employer ledger entries
   const fetchLedgerEntries = useCallback(async () => {
-    if (activeTab !== 'employer-ledger') return;
+    if (activeTab !== 'employee-ledger') return;
     
     try {
       setLedgerLoading(true);

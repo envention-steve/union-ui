@@ -113,9 +113,46 @@ export interface InsurancePlan {
   type: 'HEALTH' | 'DENTAL' | 'VISION' | 'OTHER';
   group: string;
   include_cms: boolean;
-  insurance_plan_company_id?: number;
+  insurance_plan_company_id: number;
   created_at?: string;
   updated_at?: string;
+  // Company relationship with contact info
+  insurance_plan_company?: {
+    id: number;
+    name: string;
+    addresses: Address[];
+    phone_numbers: PhoneNumber[];
+    email_addresses: {
+      id?: string;
+      type: string;
+      label?: string;
+      email_address: string;
+      is_default?: boolean;
+    }[];
+  };
+  // Premium rate coverages
+  insurance_plan_rates?: InsurancePlanRateCoverage[];
+}
+
+export interface InsurancePlanRateCoverage {
+  id?: number; // Use 0 for new rates, positive numbers for existing rates
+  insurance_plan_id: number;
+  rate: number; // Will be converted from Decimal in API
+  start_date: string;
+  end_date?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Phone Number interface (if not already defined)
+export interface PhoneNumber {
+  id?: string;
+  type: string;
+  number: string;
+  extension?: string;
+  label?: string; // API uses label instead of type
+  country_code?: string;
+  is_default?: boolean;
 }
 
 export interface InsurancePlanCoverage extends BaseCoverage {

@@ -49,7 +49,10 @@ export default function InsurancePlansPage() {
       const transformedPlans: InsurancePlan[] = response.items.map((plan: any) => ({
         ...plan,
       })).sort((a: InsurancePlan, b: InsurancePlan) => {
-        return a.code.localeCompare(b.code);
+        // Safely compare codes, handling null/undefined values
+        const codeA = a.code || '';
+        const codeB = b.code || '';
+        return codeA.localeCompare(codeB);
       });
       
       setInsurancePlans(transformedPlans);
