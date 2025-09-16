@@ -198,7 +198,11 @@ class AuthenticatedBackendApiClient extends ApiClient {
     list: () => Promise<any[]>;
   };
   insurancePlans!: {
-    list: () => Promise<any[]>;
+    list: (params?: { page?: number; limit?: number; search?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
+    get: (id: string) => Promise<any>;
+    create: (data: any) => Promise<any>;
+    update: (id: string, data: any) => Promise<any>;
+    delete: (id: string) => Promise<{ message: string }>;
   };
   employerTypes!: {
     list: () => Promise<any[]>;
@@ -719,10 +723,47 @@ class AuthenticatedBackendApiClient extends ApiClient {
     };
     
     this.insurancePlans = {
-      list: () => {
-        // Use skip/limit to get all plans - set limit to 1000
-        return this.get<any[]>('/api/v1/insurance_plans', { skip: 0, limit: 1000 });
+      list: async (params?: { page?: number; limit?: number; search?: string }) => {
+        const queryParams: Record<string, any> = {};
+        
+        // Handle pagination - FastAPI uses skip/limit instead of page
+        if (params?.page !== undefined && params?.limit !== undefined) {
+          queryParams.skip = (params.page - 1) * params.limit;
+          queryParams.limit = params.limit;
+        } else {
+          queryParams.limit = 25; // Default limit
+        }
+        
+        // Add other params
+        if (params?.search) {
+          queryParams.search = params.search;
+        }
+        
+        const response = await this.get<any[]>('/api/v1/insurance_plans', queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        
+        // Extract pagination info from headers
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+        
+        return {
+          items: response,
+          total,
+          page: params?.page || 1,
+          limit: params?.limit || 25
+        };
       },
+      
+      get: (id: string) =>
+        this.get<any>(`/api/v1/insurance_plans/${id}`),
+      
+      create: (data: any) =>
+        this.post<any>('/api/v1/insurance_plans', data),
+      
+      update: (id: string, data: any) =>
+        this.put<any>(`/api/v1/insurance_plans/${id}`, data),
+      
+      delete: (id: string) =>
+        this.delete<{ message: string }>(`/api/v1/insurance_plans/${id}`),
     };
     
     this.employerTypes = {

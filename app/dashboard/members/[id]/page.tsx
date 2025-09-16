@@ -1563,8 +1563,8 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   
   const fetchInsurancePlans = useCallback(async () => {
     try {
-      const plans = await backendApiClient.insurancePlans.list();
-      setInsurancePlans(plans || []);
+      const response = await backendApiClient.insurancePlans.list({ limit: 1000 }); // Get all insurance plans
+      setInsurancePlans(response.items || []);
     } catch (err) {
       console.error('Error fetching insurance plans:', err);
       setInsurancePlans([]); // Set empty array on error
