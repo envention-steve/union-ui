@@ -124,6 +124,7 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
   const [employerTypes, setEmployerTypes] = useState<EmployerType[]>([]);
   
   const [originalData, setOriginalData] = useState<EmployerFormData | null>(null);
+  const [originalRates, setOriginalRates] = useState<EmployerRate[]>([]);
   const [formData, setFormData] = useState<EmployerFormData>({
     id: 0,
     name: '',
@@ -142,15 +143,16 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
   useEffect(() => {
     if (originalData && isEditMode) {
       const timeoutId = setTimeout(() => {
-        const hasChanges = JSON.stringify(originalData) !== JSON.stringify(formData);
-        setHasUnsavedChanges(hasChanges);
+        const hasFormChanges = JSON.stringify(originalData) !== JSON.stringify(formData);
+        const hasRateChanges = JSON.stringify(originalRates) !== JSON.stringify(rates);
+        setHasUnsavedChanges(hasFormChanges || hasRateChanges);
       }, 100); // 100ms debounce
       
       return () => clearTimeout(timeoutId);
     } else {
       setHasUnsavedChanges(false);
     }
-  }, [formData, originalData, isEditMode]);
+  }, [formData, originalData, rates, originalRates, isEditMode]);
 
   // Warn user about unsaved changes when navigating away
   useEffect(() => {
@@ -233,6 +235,10 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
       // Extract employer rates from the details response (already sorted by backend)
       if (response.employer_rates) {
         setRates(response.employer_rates);
+        setOriginalRates(response.employer_rates);
+      } else {
+        setRates([]);
+        setOriginalRates([]);
       }
       
       // Employer notes are now included in formData
@@ -350,6 +356,7 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
         // Transform company addresses with proper type field
         company_addresses: formData.addresses.map(addr => ({
           ...(addr.id && { id: addr.id }),
+          company_id: formData.id, // Required field for API
           type: 'company_address', // Required polymorphic identity
           label: addr.type, // Map UI 'type' to API 'label'
           street1: addr.street1,
@@ -362,6 +369,7 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
         // Transform company phone numbers with proper type field
         company_phone_numbers: formData.phoneNumbers.map(phone => ({
           ...(phone.id && { id: phone.id }),
+          company_id: formData.id, // Required field for API
           type: 'company_phone_number', // Required polymorphic identity
           label: phone.type, // Map UI 'type' to API 'label'
           number: phone.number,
@@ -373,6 +381,7 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
         // Transform company email addresses with proper type field
         company_email_addresses: formData.emailAddresses.map(email => ({
           ...(email.id && { id: email.id }),
+          company_id: formData.id, // Required field for API
           type: 'company_email_address', // Required polymorphic identity
           label: email.type, // Map UI 'type' to API 'label'
           email_address: email.email,
@@ -384,6 +393,15 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
           ...(note.id && { id: note.id }),
           employer_id: formData.id,
           message: note.message,
+        })),
+        
+        // Include employer rates in the update payload
+        employer_rates: rates.map(rate => ({
+          ...(rate.id && { id: rate.id }),
+          employer_id: formData.id,
+          name: rate.name,
+          contribution_rate: parseFloat(rate.contribution_rate.toString()) || 0,
+          enabled: rate.enabled,
         })),
       };
       
@@ -411,6 +429,7 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
     if (hasUnsavedChanges) {
       if (confirm('You have unsaved changes. Are you sure you want to cancel?')) {
         setFormData(originalData!);
+        setRates(originalRates);
         setHasUnsavedChanges(false);
         router.push(`/dashboard/employers/${resolvedParams.id}?mode=view`);
       }
@@ -431,6 +450,8 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
 
   // Rate management functions
   const addRate = () => {
+    if (!isEditMode) return;
+    
     const newRate: EmployerRate = {
       employer_id: formData.id,
       name: '',
@@ -441,10 +462,14 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
   };
 
   const removeRate = (index: number) => {
+    if (!isEditMode) return;
+    
     setRates(prev => prev.filter((_, i) => i !== index));
   };
 
   const updateRate = (index: number, field: string, value: any) => {
+    if (!isEditMode) return;
+    
     setRates(prev => prev.map((rate, i) => 
       i === index ? { ...rate, [field]: value } : rate
     ));
@@ -1153,17 +1178,19 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Contribution Rate (%)
+                          Contribution Rate ($)
                         </label>
                         {isEditMode ? (
                           <Input
                             type="number"
                             step="0.01"
+                            min="0"
                             value={rate.contribution_rate}
                             onChange={(e) => updateRate(index, 'contribution_rate', parseFloat(e.target.value) || 0)}
+                            placeholder="0.00"
                           />
                         ) : (
-                          <p className="text-sm">{rate.contribution_rate ? parseFloat(rate.contribution_rate.toString()).toFixed(2) : '0.00'}%</p>
+                          <p className="text-sm">${rate.contribution_rate ? parseFloat(rate.contribution_rate.toString()).toFixed(2) : '0.00'}</p>
                         )}
                       </div>
                       
