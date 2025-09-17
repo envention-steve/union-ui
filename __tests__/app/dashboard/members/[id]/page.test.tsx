@@ -1075,7 +1075,7 @@ describe('MemberDetailPage', () => {
     });
 
     it('should display insurance plan coverages in health coverage tab', async () => {
-      const user = userEvent.setup();
+Ca      const user = userEvent.setup();
 
       await act(async () => {
         render(<MemberDetailPage params={mockParams} />);

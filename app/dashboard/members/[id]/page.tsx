@@ -474,6 +474,8 @@ const TABS = [
   { id: 'life-insurance', label: 'Life Insurance', icon: FileText },
   { id: 'employers', label: 'Employers', icon: Briefcase },
   { id: 'notes', label: 'Notes', icon: ClipboardList },
+  { id: 'claims-adjustments', label: 'Claims/Adjustments', icon: CircleDollarSign },
+  { id: 'annuity-payout', label: 'Annuity Payout', icon: CircleDollarSign },
   { id: 'fund-ledger', label: 'Fund Ledger', icon: Folder },
 ];
 
