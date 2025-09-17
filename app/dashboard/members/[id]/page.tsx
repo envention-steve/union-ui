@@ -1458,6 +1458,9 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
 
   // Member Status Coverage management functions
   const addMemberStatusCoverage = () => {
+    // Store current scroll position before state update
+    const currentScrollY = window.scrollY;
+    
     const now = new Date();
     const todayDateISO = new Date(now.toISOString().split('T')[0] + 'T00:00:00.000Z').toISOString();
     const newCoverage: MemberStatusCoverage = {
@@ -1475,6 +1478,15 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       ...prev,
       member_status_coverages: [...prev.member_status_coverages, newCoverage]
     }));
+    
+    // Restore scroll position after state update
+    // Use requestAnimationFrame to ensure DOM is updated
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: currentScrollY,
+        behavior: 'instant'
+      });
+    });
   };
 
   const removeMemberStatusCoverage = (index: number) => {
@@ -2614,11 +2626,13 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
             type="distribution_class"
           />
           
-          <CoverageList 
-            title="Member Status Coverages" 
-            coverages={formData.member_status_coverages} 
-            type="member_status"
-          />
+          <div id="member-status-coverages">
+            <CoverageList 
+              title="Member Status Coverages" 
+              coverages={formData.member_status_coverages} 
+              type="member_status"
+            />
+          </div>
         </div>
       )}
 
