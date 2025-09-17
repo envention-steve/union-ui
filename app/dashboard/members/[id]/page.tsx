@@ -510,6 +510,27 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   const [endDateFilter, setEndDateFilter] = useState<string>('');
   const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
   
+  // Claims/Adjustments form state
+  const [claimTypes, setClaimTypes] = useState<{value: string; label: string}[]>([]);
+  const [creatingClaim, setCreatingClaim] = useState(false);
+  const [creatingAdjustment, setCreatingAdjustment] = useState(false);
+  const [claimForm, setClaimForm] = useState({
+    claim_type: '',
+    description: '',
+    check_number: '',
+    check_date: '',
+    amount: '',
+    posted_date: new Date().toISOString().split('T')[0],
+    allow_overdraft: false
+  });
+  const [adjustmentForm, setAdjustmentForm] = useState({
+    fund: '',
+    amount: '',
+    description: '',
+    posted_date: new Date().toISOString().split('T')[0],
+    allow_overdraft: false
+  });
+  
   // Distribution classes state
   const [distributionClasses, setDistributionClasses] = useState<DistributionClass[]>([]);
   
@@ -1586,6 +1607,16 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }
   }, []);
   
+  const fetchClaimTypes = useCallback(async () => {
+    try {
+      const types = await backendApiClient.claimTypes.list();
+      setClaimTypes(types);
+    } catch (err) {
+      console.error('Error fetching claim types:', err);
+      setClaimTypes([]);
+    }
+  }, []);
+  
   const toggleEntryExpansion = (entryId: number) => {
     setExpandedEntries(prev => {
       const newSet = new Set(prev);
@@ -1636,6 +1667,100 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     setLedgerCurrentPage(1); // Reset to first page when filters change
   };
   
+  const handleCreateClaim = async () => {
+    if (!claimForm.claim_type || !claimForm.amount) {
+      setError('Please fill in required fields: Claim Type and Claim Amount');
+      return;
+    }
+    
+    try {
+      setCreatingClaim(true);
+      setError(null);
+      
+      const claimData = {
+        claim_type: claimForm.claim_type,
+        description: claimForm.description || null,
+        check_number: claimForm.check_number || null,
+        check_date: claimForm.check_date || null,
+        amount: parseFloat(claimForm.amount),
+        posted_date: claimForm.posted_date,
+        allow_overdraft: claimForm.allow_overdraft
+      };
+      
+      await backendApiClient.members.createClaim!(resolvedParams.id, claimData);
+      
+      // Reset form
+      setClaimForm({
+        claim_type: '',
+        description: '',
+        check_number: '',
+        check_date: '',
+        amount: '',
+        posted_date: new Date().toISOString().split('T')[0],
+        allow_overdraft: false
+      });
+      
+      setSuccess('Claim created successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+      
+      // Refresh ledger entries if on fund-ledger tab
+      if (activeTab === 'fund-ledger') {
+        fetchLedgerEntries();
+      }
+      
+    } catch (err) {
+      console.error('Error creating claim:', err);
+      setError('Failed to create claim. Please try again.');
+    } finally {
+      setCreatingClaim(false);
+    }
+  };
+  
+  const handleCreateAdjustment = async () => {
+    if (!adjustmentForm.fund || !adjustmentForm.amount) {
+      setError('Please fill in required fields: Fund and Adjustment Amount');
+      return;
+    }
+    
+    try {
+      setCreatingAdjustment(true);
+      setError(null);
+      
+      const adjustmentData = {
+        fund: adjustmentForm.fund,
+        description: adjustmentForm.description || null,
+        amount: parseFloat(adjustmentForm.amount),
+        posted_date: adjustmentForm.posted_date,
+        allow_overdraft: adjustmentForm.allow_overdraft
+      };
+      
+      await backendApiClient.members.createManualAdjustment!(resolvedParams.id, adjustmentData);
+      
+      // Reset form
+      setAdjustmentForm({
+        fund: '',
+        amount: '',
+        description: '',
+        posted_date: new Date().toISOString().split('T')[0],
+        allow_overdraft: false
+      });
+      
+      setSuccess('Manual adjustment created successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+      
+      // Refresh ledger entries if on fund-ledger tab
+      if (activeTab === 'fund-ledger') {
+        fetchLedgerEntries();
+      }
+      
+    } catch (err) {
+      console.error('Error creating manual adjustment:', err);
+      setError('Failed to create manual adjustment. Please try again.');
+    } finally {
+      setCreatingAdjustment(false);
+    }
+  };
+  
   // Fetch ledger entries when filters or pagination changes
   useEffect(() => {
     fetchLedgerEntries();
@@ -1660,6 +1785,11 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   useEffect(() => {
     fetchInsurancePlans();
   }, [fetchInsurancePlans]);
+  
+  // Fetch claim types on component mount
+  useEffect(() => {
+    fetchClaimTypes();
+  }, [fetchClaimTypes]);
   
   // Reset filters when changing to fund ledger tab
   useEffect(() => {
@@ -3416,8 +3546,209 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
+      {/* Claims/Adjustments Tab */}
+      {activeTab === 'claims-adjustments' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Claim Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">Claim</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="text-red-500">*</span> Claim Type:
+                </label>
+                <Select 
+                  value={claimForm.claim_type} 
+                  onValueChange={(value) => setClaimForm(prev => ({...prev, claim_type: value}))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select claim type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {claimTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Claim Description:
+                </label>
+                <Textarea
+                  value={claimForm.description}
+                  onChange={(e) => setClaimForm(prev => ({...prev, description: e.target.value}))}
+                  placeholder="Enter claim description"
+                  rows={3}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Check Number:
+                </label>
+                <Input
+                  value={claimForm.check_number}
+                  onChange={(e) => setClaimForm(prev => ({...prev, check_number: e.target.value}))}
+                  placeholder="Enter check number"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Check Date:
+                </label>
+                <Input
+                  type="date"
+                  value={claimForm.check_date}
+                  onChange={(e) => setClaimForm(prev => ({...prev, check_date: e.target.value}))}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="text-red-500">*</span> Claim Amount
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={claimForm.amount}
+                    onChange={(e) => setClaimForm(prev => ({...prev, amount: e.target.value}))}
+                    className="pl-8"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Posted Date:
+                </label>
+                <Input
+                  type="date"
+                  value={claimForm.posted_date}
+                  onChange={(e) => setClaimForm(prev => ({...prev, posted_date: e.target.value}))}
+                />
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="claim-overdraft"
+                  checked={claimForm.allow_overdraft}
+                  onCheckedChange={(checked) => setClaimForm(prev => ({...prev, allow_overdraft: !!checked}))}
+                />
+                <Label htmlFor="claim-overdraft" className="text-sm">
+                  Allow Overdraft?
+                </Label>
+              </div>
+              
+              <Button 
+                onClick={handleCreateClaim}
+                disabled={creatingClaim || !claimForm.claim_type || !claimForm.amount}
+                className="w-full bg-union-600 hover:bg-union-700 text-white"
+              >
+                {creatingClaim ? 'Creating...' : 'Create Claim'}
+              </Button>
+            </CardContent>
+          </Card>
+          
+          {/* Manual Adjustment Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">Manual Adjustment</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="text-red-500">*</span> Fund:
+                </label>
+                <Select 
+                  value={adjustmentForm.fund} 
+                  onValueChange={(value) => setAdjustmentForm(prev => ({...prev, fund: value}))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select fund type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HEALTH">Health Fund</SelectItem>
+                    <SelectItem value="ANNUITY">Annuity Fund</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="text-red-500">*</span> Adjustment Amount
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={adjustmentForm.amount}
+                    onChange={(e) => setAdjustmentForm(prev => ({...prev, amount: e.target.value}))}
+                    className="pl-8"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Adjustment Description
+                </label>
+                <Textarea
+                  value={adjustmentForm.description}
+                  onChange={(e) => setAdjustmentForm(prev => ({...prev, description: e.target.value}))}
+                  placeholder="Enter adjustment description"
+                  rows={3}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Posted Date:
+                </label>
+                <Input
+                  type="date"
+                  value={adjustmentForm.posted_date}
+                  onChange={(e) => setAdjustmentForm(prev => ({...prev, posted_date: e.target.value}))}
+                />
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="adjustment-overdraft"
+                  checked={adjustmentForm.allow_overdraft}
+                  onCheckedChange={(checked) => setAdjustmentForm(prev => ({...prev, allow_overdraft: !!checked}))}
+                />
+                <Label htmlFor="adjustment-overdraft" className="text-sm">
+                  Allow Overdraft?
+                </Label>
+              </div>
+              
+              <Button 
+                onClick={handleCreateAdjustment}
+                disabled={creatingAdjustment || !adjustmentForm.fund || !adjustmentForm.amount}
+                className="w-full bg-union-600 hover:bg-union-700 text-white"
+              >
+                {creatingAdjustment ? 'Creating...' : 'Create Manual adjustment'}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      
       {/* Placeholder for other tabs */}
-      {activeTab !== 'member' && activeTab !== 'life-insurance' && activeTab !== 'dependents' && activeTab !== 'employers' && activeTab !== 'health-coverage' && activeTab !== 'notes' && activeTab !== 'fund-ledger' && (
+      {activeTab !== 'member' && activeTab !== 'life-insurance' && activeTab !== 'dependents' && activeTab !== 'employers' && activeTab !== 'health-coverage' && activeTab !== 'notes' && activeTab !== 'fund-ledger' && activeTab !== 'claims-adjustments' && (
         <Card>
           <CardContent className="p-12 text-center">
             <div className="text-gray-500">

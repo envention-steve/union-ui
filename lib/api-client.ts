@@ -31,6 +31,9 @@ interface BusinessEndpoints {
   updateNote?: (id: string, noteId: string, data: any) => Promise<any>;
   deleteNote?: (id: string, noteId: string) => Promise<any>;
   getMembers?: (id: string, params?: { page?: number; limit?: number; search?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
+  // Claim and adjustment creation methods
+  createClaim?: (id: string, data: any) => Promise<any>;
+  createManualAdjustment?: (id: string, data: any) => Promise<any>;
 }
 
 interface DashboardEndpoints {
@@ -190,6 +193,9 @@ class AuthenticatedBackendApiClient extends ApiClient {
   dashboard!: DashboardEndpoints;
   ledgerEntries!: {
     getTypes: () => Promise<{ value: string; label: string; }[]>;
+  };
+  claimTypes!: {
+    list: () => Promise<{ value: string; label: string; }[]>;
   };
   distributionClasses!: {
     list: () => Promise<any[]>;
@@ -511,6 +517,14 @@ class AuthenticatedBackendApiClient extends ApiClient {
           limit: params?.limit || 25
         };
       },
+      
+      // Create a new claim for the member
+      createClaim: (id: string, data: any) =>
+        this.post<any>(`/api/v1/members/${id}/claims`, data),
+      
+      // Create a new manual adjustment for the member
+      createManualAdjustment: (id: string, data: any) =>
+        this.post<any>(`/api/v1/members/${id}/manual_adjustments`, data),
     };
 
     this.employers = {
@@ -711,6 +725,11 @@ class AuthenticatedBackendApiClient extends ApiClient {
     this.ledgerEntries = {
       getTypes: () =>
         this.get<{ value: string; label: string; }[]>('/api/v1/ledger_entries/types'),
+    };
+    
+    this.claimTypes = {
+      list: () =>
+        this.get<{ value: string; label: string; }[]>('/api/v1/claim_types'),
     };
     
     this.distributionClasses = {
