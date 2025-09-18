@@ -391,6 +391,8 @@ interface MemberNote {
 }
 
 interface FundBalance {
+  health_account_id: number;
+  annuity_account_id: number;
   health_balance: number;
   annuity_balance: number;
   last_updated: string;
@@ -524,7 +526,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     allow_overdraft: false
   });
   const [adjustmentForm, setAdjustmentForm] = useState({
-    fund: '',
+    account_id: '' as (string | number),
     amount: '',
     description: '',
     posted_date: new Date().toISOString().split('T')[0],
@@ -1717,8 +1719,8 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   };
   
   const handleCreateAdjustment = async () => {
-    if (!adjustmentForm.fund || !adjustmentForm.amount) {
-      setError('Please fill in required fields: Fund and Adjustment Amount');
+    if (!adjustmentForm.account_id || !adjustmentForm.amount) {
+      setError('Please fill in required fields: Account and Adjustment Amount');
       return;
     }
     
@@ -1727,35 +1729,44 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       setError(null);
       
       const adjustmentData = {
-        fund: adjustmentForm.fund,
-        description: adjustmentForm.description || null,
+        account_id: parseInt(String(adjustmentForm.account_id)),
+        member_id: parseInt(resolvedParams.id),
+        posted: false,
+        suspended: false,
         amount: parseFloat(adjustmentForm.amount),
         posted_date: adjustmentForm.posted_date,
+        description: adjustmentForm.description || '',
         allow_overdraft: adjustmentForm.allow_overdraft
       };
       
-      await backendApiClient.members.createManualAdjustment!(resolvedParams.id, adjustmentData);
+      await backendApiClient.manualAdjustments.create(adjustmentData);
       
+      setSuccess('Manual adjustment created successfully! Refreshing data...');
+
+      // Re-fetch all member data to update fund balances and other details
+      await fetchMember();
+
       // Reset form
       setAdjustmentForm({
-        fund: '',
+        account_id: '',
         amount: '',
         description: '',
         posted_date: new Date().toISOString().split('T')[0],
         allow_overdraft: false
       });
       
-      setSuccess('Manual adjustment created successfully!');
-      setTimeout(() => setSuccess(null), 3000);
-      
       // Refresh ledger entries if on fund-ledger tab
       if (activeTab === 'fund-ledger') {
         fetchLedgerEntries();
       }
+
+      setSuccess('Manual adjustment created and data refreshed!');
+      setTimeout(() => setSuccess(null), 3000);
       
     } catch (err) {
       console.error('Error creating manual adjustment:', err);
-      setError('Failed to create manual adjustment. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+      setError(`Failed to create manual adjustment: ${errorMessage}`);
     } finally {
       setCreatingAdjustment(false);
     }
@@ -3668,18 +3679,25 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
             <CardContent className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <span className="text-red-500">*</span> Fund:
+                  <span className="text-red-500">*</span> Account:
                 </label>
                 <Select 
-                  value={adjustmentForm.fund} 
-                  onValueChange={(value) => setAdjustmentForm(prev => ({...prev, fund: value}))}
+                  value={String(adjustmentForm.account_id)} 
+                  onValueChange={(value) => setAdjustmentForm(prev => ({...prev, account_id: value}))}
+                  disabled={!formData.fund_balances}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select fund type" />
+                    <SelectValue placeholder="Select account" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="HEALTH">Health Fund</SelectItem>
-                    <SelectItem value="ANNUITY">Annuity Fund</SelectItem>
+                    {formData.fund_balances ? (
+                      <>
+                        <SelectItem value={String(formData.fund_balances.health_account_id)}>Health Account</SelectItem>
+                        <SelectItem value={String(formData.fund_balances.annuity_account_id)}>Annuity Account</SelectItem>
+                      </>
+                    ) : (
+                      <SelectItem value="disabled" disabled>No accounts found for member</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -3737,10 +3755,10 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
               
               <Button 
                 onClick={handleCreateAdjustment}
-                disabled={creatingAdjustment || !adjustmentForm.fund || !adjustmentForm.amount}
+                disabled={creatingAdjustment || !adjustmentForm.account_id || !adjustmentForm.amount}
                 className="w-full bg-union-600 hover:bg-union-700 text-white"
               >
-                {creatingAdjustment ? 'Creating...' : 'Create Manual adjustment'}
+                {creatingAdjustment ? 'Creating...' : 'Create Manual Adjustment'}
               </Button>
             </CardContent>
           </Card>

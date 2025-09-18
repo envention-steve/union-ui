@@ -39,22 +39,41 @@ export default function MembersPage() {
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await backendApiClient.members.list({
-        page: currentPage,
-        limit: itemsPerPage,
-        search: debouncedSearchTerm || undefined
-      });
-      
-      // Transform API data to match UI expectations
-      const transformedMembers: Member[] = response.items.map((member: any) => ({
-        ...member,
-        full_name: `${member.first_name} ${member.last_name}`,
-        member_id: member.unique_id
-      }));
+
+      let transformedMembers: Member[] = [];
+      let total = 0;
+
+      if (debouncedSearchTerm) {
+        const response = await backendApiClient.members.autocomplete(debouncedSearchTerm);
+        if (Array.isArray(response)) {
+          transformedMembers = response.map((member: any) => ({
+            ...member,
+            full_name: `${member.first_name} ${member.last_name}`,
+            member_id: member.unique_id
+          }));
+          total = response.length;
+        } else {
+          console.error('Autocomplete response is not an array:', response);
+        }
+      } else {
+        const response = await backendApiClient.members.list({
+          page: currentPage,
+          limit: itemsPerPage,
+        });
+        if (response && Array.isArray(response.items)) {
+          transformedMembers = response.items.map((member: any) => ({
+            ...member,
+            full_name: `${member.first_name} ${member.last_name}`,
+            member_id: member.unique_id
+          }));
+          total = response.total;
+        } else {
+          console.error('List response.items is not an array:', response);
+        }
+      }
       
       setMembers(transformedMembers);
-      setTotalMembers(response.total);
+      setTotalMembers(total);
     } catch (err) {
       console.error('Error fetching members:', err);
       setError('Failed to load members. Please try again.');

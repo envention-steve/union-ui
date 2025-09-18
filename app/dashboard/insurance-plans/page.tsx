@@ -39,24 +39,41 @@ export default function InsurancePlansPage() {
       setLoading(true);
       setError(null);
       
-      const response = await backendApiClient.insurancePlans.list({
-        page: currentPage,
-        limit: itemsPerPage,
-        search: debouncedSearchTerm || undefined
-      });
-      
+      let responseItems: InsurancePlan[] = [];
+      let total = 0;
+
+      if (debouncedSearchTerm) {
+        const response = await backendApiClient.insurancePlans.autocomplete(debouncedSearchTerm);
+        if (Array.isArray(response)) {
+          responseItems = response;
+          total = response.length;
+        } else {
+          console.error('Autocomplete response is not an array:', response);
+        }
+      } else {
+        const response = await backendApiClient.insurancePlans.list({
+          page: currentPage,
+          limit: itemsPerPage,
+        });
+        if (response && Array.isArray(response.items)) {
+          responseItems = response.items;
+          total = response.total;
+        } else {
+          console.error('List response.items is not an array:', response);
+        }
+      }
+
       // Transform and sort API data by code
-      const transformedPlans: InsurancePlan[] = response.items.map((plan: any) => ({
+      const transformedPlans: InsurancePlan[] = responseItems.map((plan: any) => ({
         ...plan,
       })).sort((a: InsurancePlan, b: InsurancePlan) => {
-        // Safely compare codes, handling null/undefined values
         const codeA = a.code || '';
         const codeB = b.code || '';
         return codeA.localeCompare(codeB);
       });
       
       setInsurancePlans(transformedPlans);
-      setTotalInsurancePlans(response.total);
+      setTotalInsurancePlans(total);
     } catch (err) {
       console.error('Error fetching insurance plans:', err);
       setError('Failed to load insurance plans. Please try again.');

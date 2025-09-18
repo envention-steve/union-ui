@@ -39,20 +39,39 @@ export default function EmployersPage() {
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await backendApiClient.employers.list({
-        page: currentPage,
-        limit: itemsPerPage,
-        search: debouncedSearchTerm || undefined
-      });
-      
-      // Transform API data to match UI expectations
-      const transformedEmployers: Employer[] = response.items.map((employer: any) => ({
-        ...employer,
-      }));
+
+      let transformedEmployers: Employer[] = [];
+      let total = 0;
+
+      if (debouncedSearchTerm) {
+        const response = await backendApiClient.employers.autocomplete(debouncedSearchTerm);
+        // Defensive check to ensure response is an array
+        if (Array.isArray(response)) {
+          transformedEmployers = response.map((employer: any) => ({ ...employer }));
+          total = response.length;
+        } else {
+          console.error('Autocomplete response is not an array:', response);
+          transformedEmployers = [];
+          total = 0;
+        }
+      } else {
+        const response = await backendApiClient.employers.list({
+          page: currentPage,
+          limit: itemsPerPage,
+        });
+        // Defensive check to ensure response.items is an array
+        if (response && Array.isArray(response.items)) {
+          transformedEmployers = response.items.map((employer: any) => ({ ...employer }));
+          total = response.total;
+        } else {
+          console.error('List response.items is not an array:', response);
+          transformedEmployers = [];
+          total = 0;
+        }
+      }
       
       setEmployers(transformedEmployers);
-      setTotalEmployers(response.total);
+      setTotalEmployers(total);
     } catch (err) {
       console.error('Error fetching employers:', err);
       setError('Failed to load employers. Please try again.');
