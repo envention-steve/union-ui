@@ -1107,7 +1107,7 @@ export default function InsurancePlanDetailPage({ params }: { params: Promise<{ 
                             onChange={(e) => updateRateCoverage(index, 'rate', parseFloat(e.target.value))}
                           />
                         ) : (
-                          <p className="text-sm">${parseFloat(rate.rate).toFixed(2)}</p>
+                          <p className="text-sm">${Number(rate.rate).toFixed(2)}</p>
                         )}
                       </div>
                       <div>

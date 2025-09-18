@@ -42,7 +42,7 @@ export default function InsurancePlansPage() {
       let responseItems: InsurancePlan[] = [];
       let total = 0;
 
-      if (debouncedSearchTerm) {
+      if (debouncedSearchTerm && backendApiClient.insurancePlans.autocomplete) {
         const response = await backendApiClient.insurancePlans.autocomplete(debouncedSearchTerm);
         if (Array.isArray(response)) {
           responseItems = response;

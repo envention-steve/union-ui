@@ -32,6 +32,8 @@ interface BusinessEndpoints {
   update: (id: string, data: any) => Promise<any>;
   updateWithNested?: (id: string, data: any) => Promise<any>;
   delete: (id: string) => Promise<{ message: string }>;
+  // Autocomplete method
+  autocomplete?: (query: string) => Promise<any[]>;
   // Employer-specific methods
   getRates?: (id: string) => Promise<any[]>;
   createRate?: (id: string, data: any) => Promise<any>;
@@ -205,11 +207,14 @@ class AuthenticatedBackendApiClient extends ApiClient {
   manualAdjustments!: {
     create: (data: ManualAdjustmentPayload) => Promise<any>;
   };
+  claims!: {
+    create: (data: any) => Promise<any>;
+  };
   ledgerEntries!: {
     getTypes: () => Promise<{ value: string; label: string; }[]>;
   };
   claimTypes!: {
-    list: () => Promise<{ value: string; label: string; }[]>;
+    list: () => Promise<string[]>;
   };
   distributionClasses!: {
     list: () => Promise<any[]>;
@@ -221,6 +226,7 @@ class AuthenticatedBackendApiClient extends ApiClient {
     list: (params?: { page?: number; limit?: number; search?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
     get: (id: string) => Promise<any>;
     getDetails: (id: string) => Promise<any>;
+    autocomplete?: (query: string) => Promise<any[]>;
     create: (data: any) => Promise<any>;
     update: (id: string, data: any) => Promise<any>;
     delete: (id: string) => Promise<{ message: string }>;
@@ -687,7 +693,7 @@ class AuthenticatedBackendApiClient extends ApiClient {
     
     this.claimTypes = {
       list: () =>
-        this.get<{ value: string; label: string; }[]>('/api/v1/claim_types'),
+        this.get<string[]>('/api/v1/claim_types'),
     };
     
     this.distributionClasses = {

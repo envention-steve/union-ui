@@ -43,7 +43,7 @@ export default function EmployersPage() {
       let transformedEmployers: Employer[] = [];
       let total = 0;
 
-      if (debouncedSearchTerm) {
+      if (debouncedSearchTerm && backendApiClient.employers.autocomplete) {
         const response = await backendApiClient.employers.autocomplete(debouncedSearchTerm);
         // Defensive check to ensure response is an array
         if (Array.isArray(response)) {

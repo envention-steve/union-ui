@@ -517,6 +517,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   const [creatingClaim, setCreatingClaim] = useState(false);
   const [creatingAdjustment, setCreatingAdjustment] = useState(false);
   const [claimForm, setClaimForm] = useState({
+    account_id: '' as (string | number),
     claim_type: '',
     description: '',
     check_number: '',
@@ -1611,8 +1612,18 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   
   const fetchClaimTypes = useCallback(async () => {
     try {
-      const types = await backendApiClient.claimTypes.list();
-      setClaimTypes(types);
+      const types: string[] = await backendApiClient.claimTypes.list();
+      if (Array.isArray(types)) {
+        // Transform the array of strings to objects with value and label
+        const transformedTypes = types.map((type) => ({
+          value: type,
+          label: type
+        }));
+        setClaimTypes(transformedTypes);
+      } else {
+        console.error('Claim types response is not an array:', types);
+        setClaimTypes([]);
+      }
     } catch (err) {
       console.error('Error fetching claim types:', err);
       setClaimTypes([]);
@@ -1670,8 +1681,8 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   };
   
   const handleCreateClaim = async () => {
-    if (!claimForm.claim_type || !claimForm.amount) {
-      setError('Please fill in required fields: Claim Type and Claim Amount');
+    if (!claimForm.account_id || !claimForm.claim_type || !claimForm.amount) {
+      setError('Please fill in all required fields: Account, Claim Type, and Amount.');
       return;
     }
     
@@ -1680,19 +1691,24 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       setError(null);
       
       const claimData = {
-        claim_type: claimForm.claim_type,
-        description: claimForm.description || null,
-        check_number: claimForm.check_number || null,
-        check_date: claimForm.check_date || null,
+        account_id: parseInt(String(claimForm.account_id)),
+        member_id: parseInt(resolvedParams.id),
+        posted: false,
+        suspended: false,
         amount: parseFloat(claimForm.amount),
         posted_date: claimForm.posted_date,
-        allow_overdraft: claimForm.allow_overdraft
+        description: claimForm.description || '',
+        check_date: claimForm.check_date || null,
+        check_number: claimForm.check_number || null,
+        allow_overdraft: claimForm.allow_overdraft,
+        claim_type: claimForm.claim_type,
       };
       
-      await backendApiClient.members.createClaim!(resolvedParams.id, claimData);
+      await backendApiClient.claims.create(claimData);
       
       // Reset form
       setClaimForm({
+        account_id: '',
         claim_type: '',
         description: '',
         check_number: '',
@@ -1702,17 +1718,18 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         allow_overdraft: false
       });
       
-      setSuccess('Claim created successfully!');
-      setTimeout(() => setSuccess(null), 3000);
-      
-      // Refresh ledger entries if on fund-ledger tab
+      setSuccess('Claim created successfully! Refreshing data...');
+      await fetchMember(); // Refresh member details
       if (activeTab === 'fund-ledger') {
-        fetchLedgerEntries();
+        fetchLedgerEntries(); // Refresh ledger if viewing it
       }
+      setSuccess('Claim created and data refreshed!');
+      setTimeout(() => setSuccess(null), 3000);
       
     } catch (err) {
       console.error('Error creating claim:', err);
-      setError('Failed to create claim. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+      setError(`Failed to create claim: ${errorMessage}`);
     } finally {
       setCreatingClaim(false);
     }
@@ -1801,6 +1818,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   useEffect(() => {
     fetchClaimTypes();
   }, [fetchClaimTypes]);
+  
   
   // Reset filters when changing to fund ledger tab
   useEffect(() => {
@@ -3578,8 +3596,8 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                     <SelectValue placeholder="Select claim type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {claimTypes.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
+                    {claimTypes.map((type, index) => (
+                      <SelectItem key={index} value={type.value}>
                         {type.label}
                       </SelectItem>
                     ))}

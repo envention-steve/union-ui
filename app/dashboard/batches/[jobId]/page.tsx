@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -72,10 +73,26 @@ const mockHistory = [
   },
 ];
 
-export default function BatchJobPage({ params }: { params: { jobId: string } }) {
-  const { jobId } = params;
-  const details = jobDetails[jobId];
+export default function BatchJobPage({ params }: { params: Promise<{ jobId: string }> }) {
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  useEffect(() => {
+    params.then(({ jobId }) => {
+      setJobId(jobId);
+      setIsLoading(false);
+    });
+  }, [params]);
+
+  if (isLoading || !jobId) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold">Loading...</h1>
+      </div>
+    );
+  }
+
+  const details = jobDetails[jobId];
   // A simple way to decide if we show history or not, for demonstration
   const showHistory = jobId !== 'annuity-payout' && jobId !== 'member-claim';
 

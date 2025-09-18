@@ -43,7 +43,7 @@ export default function MembersPage() {
       let transformedMembers: Member[] = [];
       let total = 0;
 
-      if (debouncedSearchTerm) {
+      if (debouncedSearchTerm && backendApiClient.members.autocomplete) {
         const response = await backendApiClient.members.autocomplete(debouncedSearchTerm);
         if (Array.isArray(response)) {
           transformedMembers = response.map((member: any) => ({
