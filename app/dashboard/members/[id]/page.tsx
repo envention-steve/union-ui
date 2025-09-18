@@ -1681,8 +1681,13 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   };
   
   const handleCreateClaim = async () => {
-    if (!claimForm.account_id || !claimForm.claim_type || !claimForm.amount) {
-      setError('Please fill in all required fields: Account, Claim Type, and Amount.');
+    if (!claimForm.claim_type || !claimForm.amount) {
+      setError('Please fill in all required fields: Claim Type and Amount.');
+      return;
+    }
+    
+    if (!formData.fund_balances?.health_account_id) {
+      setError('Unable to create claim: Health account not found for this member.');
       return;
     }
     
@@ -1691,7 +1696,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       setError(null);
       
       const claimData = {
-        account_id: parseInt(String(claimForm.account_id)),
+        account_id: formData.fund_balances!.health_account_id,
         member_id: parseInt(resolvedParams.id),
         posted: false,
         suspended: false,

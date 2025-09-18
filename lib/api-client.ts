@@ -747,6 +747,11 @@ class AuthenticatedBackendApiClient extends ApiClient {
       create: (data: ManualAdjustmentPayload) =>
         this.post<any>('/api/v1/manual_adjustments', data),
     };
+    
+    this.claims = {
+      create: (data: any) =>
+        this.post<any>('/api/v1/claims', data),
+    };
   }
   
   async initialize() {
