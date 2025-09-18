@@ -234,6 +234,15 @@ class AuthenticatedBackendApiClient extends ApiClient {
   employerTypes!: {
     list: () => Promise<any[]>;
   };
+  accountContributions!: {
+    list: (params?: { page?: number; limit?: number; start_date?: string; end_date?: string; status?: string; type?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
+    get: (id: string) => Promise<any>;
+    create: (data: any) => Promise<any>;
+    update: (id: string, data: any) => Promise<any>;
+    delete: (id: string) => Promise<{ message: string }>;
+    post: (id: string) => Promise<any>;
+    unpost: (id: string) => Promise<any>;
+  };
 
   constructor(baseURL: string) {
     super(baseURL);
@@ -751,6 +760,46 @@ class AuthenticatedBackendApiClient extends ApiClient {
     this.claims = {
       create: (data: any) =>
         this.post<any>('/api/v1/claims', data),
+    };
+    
+    this.accountContributions = {
+      list: async (params?: { page?: number; limit?: number; start_date?: string; end_date?: string; status?: string; type?: string }) => {
+        const queryParams: Record<string, any> = {};
+        if (params?.page !== undefined && params?.limit !== undefined) {
+          queryParams.skip = (params.page - 1) * params.limit;
+          queryParams.limit = params.limit;
+        } else {
+          queryParams.limit = 25;
+        }
+        if (params?.start_date) {
+          queryParams.start_date = params.start_date;
+        }
+        if (params?.end_date) {
+          queryParams.end_date = params.end_date;
+        }
+        if (params?.status) {
+          queryParams.status = params.status;
+        }
+        if (params?.type) {
+          queryParams.type = params.type;
+        }
+        const response = await this.get<any[]>('/api/v1/account_contribution_batches', queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+        return {
+          items: response,
+          total,
+          page: params?.page || 1,
+          limit: params?.limit || 25
+        };
+      },
+      get: (id: string) => this.get<any>(`/api/v1/account_contribution_batches/${id}`),
+      getDetails: (id: string) => this.get<any>(`/api/v1/account_contribution_batches/${id}/details`),
+      create: (data: any) => this.post<any>('/api/v1/account_contribution_batches', data),
+      update: (id: string, data: any) => this.put<any>(`/api/v1/account_contribution_batches/${id}`, data),
+      delete: (id: string) => this.delete<{ message: string }>(`/api/v1/account_contribution_batches/${id}`),
+      post: (id: string) => this.post<any>(`/api/v1/account_contribution_batches/${id}/post`),
+      unpost: (id: string) => this.post<any>(`/api/v1/account_contribution_batches/${id}/unpost`),
     };
   }
   

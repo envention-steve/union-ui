@@ -513,6 +513,36 @@ export interface EmployerWithContributions extends Employer {
   employer_contribution_batches?: EmployerContributionBatch[];
 }
 
+// Account Contribution types
+export interface AccountContribution {
+  id: number;
+  date_range: string;
+  type: 'Self Pay' | 'Employer Contribution' | 'Insurance Premium' | 'Other';
+  status: 'Posted' | 'Unposted';
+  amount?: number;
+  description?: string;
+  period_start?: string;
+  period_end?: string;
+  posted_date?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccountContributionBatch {
+  id: number;
+  date_range: string;
+  type: 'Self Pay' | 'Employer Contribution' | 'Insurance Premium' | 'Other';
+  status: 'Posted' | 'Unposted';
+  total_amount: number;
+  contributions_count: number;
+  period_start?: string;
+  period_end?: string;
+  posted_date?: string;
+  created_at: string;
+  updated_at: string;
+  contributions?: AccountContribution[];
+}
+
 // Theme types
 export type Theme = 'light' | 'dark' | 'system';
 

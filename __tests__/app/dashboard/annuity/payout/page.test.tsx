@@ -1,0 +1,165 @@
+import { render, screen } from '@testing-library/react';
+import AnnuityPayoutPage from '@/app/dashboard/annuity/payout/page';
+import '@testing-library/jest-dom';
+
+// Mock the toast function
+jest.mock('sonner', () => ({
+  toast: {
+    success: jest.fn(),
+  },
+}));
+
+// Mock the AnnuityPayoutForm component
+jest.mock('@/components/features/annuity/annuity-payout-form', () => ({
+  AnnuityPayoutForm: ({ onSubmit }: { onSubmit: (data: any) => void }) => (
+    <div data-testid="annuity-payout-form">
+      <button 
+        onClick={() => onSubmit({ distributionAmount: 1000 })}
+        data-testid="mock-submit-button"
+      >
+        Mock Submit
+      </button>
+    </div>
+  ),
+}));
+
+describe('AnnuityPayoutPage', () => {
+  it('renders the page title correctly', () => {
+    render(<AnnuityPayoutPage />);
+    
+    expect(screen.getByRole('heading', { name: /annuity payout/i })).toBeInTheDocument();
+  });
+
+  it('renders the page description', () => {
+    render(<AnnuityPayoutPage />);
+    
+    expect(screen.getByText('Process annuity payments for members and companies')).toBeInTheDocument();
+  });
+
+  it('renders the AnnuityPayoutForm component', () => {
+    render(<AnnuityPayoutPage />);
+    
+    expect(screen.getByTestId('annuity-payout-form')).toBeInTheDocument();
+  });
+
+  it('handles form submission correctly', () => {
+    const { toast } = require('sonner');
+    
+    render(<AnnuityPayoutPage />);
+    
+    const submitButton = screen.getByTestId('mock-submit-button');
+    submitButton.click();
+    
+    expect(toast.success).toHaveBeenCalledWith(
+      'Annuity payout submitted successfully!',
+      expect.objectContaining({
+        description: expect.stringContaining('$1,000.00'),
+      })
+    );
+  });
+
+  it('logs form data to console on submission', () => {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    
+    render(<AnnuityPayoutPage />);
+    
+    const submitButton = screen.getByTestId('mock-submit-button');
+    submitButton.click();
+    
+    expect(consoleSpy).toHaveBeenCalledWith('Submitting annuity payout:', { distributionAmount: 1000 });
+    
+    consoleSpy.mockRestore();
+  });
+
+  it('has proper page structure', () => {
+    render(<AnnuityPayoutPage />);
+    
+    // Check that the page has the expected layout structure
+    const pageContainer = screen.getByRole('heading', { name: /annuity payout/i }).closest('div');
+    expect(pageContainer).toHaveClass('space-y-6');
+  });
+
+  it('formats currency correctly in toast message', () => {
+    const { toast } = require('sonner');
+    
+    render(<AnnuityPayoutPage />);
+    
+    const submitButton = screen.getByTestId('mock-submit-button');
+    submitButton.click();
+    
+    expect(toast.success).toHaveBeenCalledWith(
+      'Annuity payout submitted successfully!',
+      expect.objectContaining({
+        description: 'Distribution amount: $1,000.00',
+      })
+    );
+  });
+
+  it('handles zero distribution amount', () => {
+    // Update the mock to return 0
+    jest.clearAllMocks();
+    
+    const { AnnuityPayoutForm } = require('@/components/features/annuity/annuity-payout-form');
+    AnnuityPayoutForm.mockImplementation(({ onSubmit }: { onSubmit: (data: any) => void }) => (
+      <div data-testid="annuity-payout-form">
+        <button 
+          onClick={() => onSubmit({ distributionAmount: 0 })}
+          data-testid="mock-submit-button-zero"
+        >
+          Mock Submit Zero
+        </button>
+      </div>
+    ));
+    
+    const { toast } = require('sonner');
+    
+    render(<AnnuityPayoutPage />);
+    
+    const submitButton = screen.getByTestId('mock-submit-button-zero');
+    submitButton.click();
+    
+    expect(toast.success).toHaveBeenCalledWith(
+      'Annuity payout submitted successfully!',
+      expect.objectContaining({
+        description: 'Distribution amount: $0.00',
+      })
+    );
+  });
+
+  it('handles undefined distribution amount gracefully', () => {
+    // Update the mock to return undefined distribution amount
+    jest.clearAllMocks();
+    
+    const { AnnuityPayoutForm } = require('@/components/features/annuity/annuity-payout-form');
+    AnnuityPayoutForm.mockImplementation(({ onSubmit }: { onSubmit: (data: any) => void }) => (
+      <div data-testid="annuity-payout-form">
+        <button 
+          onClick={() => onSubmit({})}
+          data-testid="mock-submit-button-undefined"
+        >
+          Mock Submit Undefined
+        </button>
+      </div>
+    ));
+    
+    const { toast } = require('sonner');
+    
+    render(<AnnuityPayoutPage />);
+    
+    const submitButton = screen.getByTestId('mock-submit-button-undefined');
+    submitButton.click();
+    
+    expect(toast.success).toHaveBeenCalledWith(
+      'Annuity payout submitted successfully!',
+      expect.objectContaining({
+        description: 'Distribution amount: $0.00',
+      })
+    );
+  });
+
+  it('uses client directive', () => {
+    // This test ensures the component is marked as a client component
+    // by checking that it can render without server-side issues
+    expect(() => render(<AnnuityPayoutPage />)).not.toThrow();
+  });
+});

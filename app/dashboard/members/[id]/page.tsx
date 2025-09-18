@@ -45,6 +45,7 @@ import {
   isInsurancePremiumEntry,
   isAnnuityUpdateEntry
 } from '@/types/ledger-entries';
+import { AnnuityPayoutForm } from '@/components/features/annuity/annuity-payout-form';
 
 // Component to render type-specific ledger entry details
 const LedgerEntryExpandedDetails: React.FC<{ entry: PolymorphicLedgerEntry }> = ({ entry }) => {
@@ -3788,8 +3789,38 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
       
+      {/* Annuity Payout Tab */}
+      {activeTab === 'annuity-payout' && (
+        <div className="space-y-6">
+          {/* Member Fund Balance Summary */}
+          {formData.fund_balances && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-blue-700">Annuity Account Balance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">
+                  ${formData.fund_balances.annuity_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  Available for payout as of {new Date(formData.fund_balances.last_updated).toLocaleDateString()}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+          
+          <AnnuityPayoutForm 
+            onSubmit={(data) => {
+              console.log('Annuity payout form submitted:', data);
+              setSuccess('Annuity payout form has been successfully submitted!');
+              setTimeout(() => setSuccess(null), 3000);
+            }}
+          />
+        </div>
+      )}
+      
       {/* Placeholder for other tabs */}
-      {activeTab !== 'member' && activeTab !== 'life-insurance' && activeTab !== 'dependents' && activeTab !== 'employers' && activeTab !== 'health-coverage' && activeTab !== 'notes' && activeTab !== 'fund-ledger' && activeTab !== 'claims-adjustments' && (
+      {activeTab !== 'member' && activeTab !== 'life-insurance' && activeTab !== 'dependents' && activeTab !== 'employers' && activeTab !== 'health-coverage' && activeTab !== 'notes' && activeTab !== 'fund-ledger' && activeTab !== 'claims-adjustments' && activeTab !== 'annuity-payout' && (
         <Card>
           <CardContent className="p-12 text-center">
             <div className="text-gray-500">
