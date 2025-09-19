@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,11 @@ interface Member {
   last_name: string;
   unique_id: string;
   full_name: string;
+  account_id?: number;
+  account_ids?: Array<number | string>;
+  accounts?: Array<{ id?: number | string; account_type?: string }>;
+  health_account_id?: number | string;
+  annuity_account_id?: number | string;
 }
 
 interface MemberContribution {
@@ -37,6 +42,7 @@ interface BatchInfo {
   posted: boolean;
   suspended: boolean;
   received_date: string;
+  account_type?: string;
 }
 
 interface FormData {
@@ -45,12 +51,15 @@ interface FormData {
 
 interface MemberSuggestion extends Member {
   isSelected?: boolean;
+  resolvedAccountId?: number;
 }
 
 export default function EditAccountContributionBatchPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params?.id as string;
+  const accountTypeParam = searchParams?.get('account_type') || undefined;
   
   const [batchInfo, setBatchInfo] = useState<BatchInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +98,8 @@ export default function EditAccountContributionBatchPage() {
         backendApiClient.accountContributions.getDetails(id)
       ]);
       
-      setBatchInfo(batchInfoResponse);
+      const effectiveAccountType = batchInfoResponse?.account_type ?? accountTypeParam ?? batchInfoResponse?.account_type;
+      setBatchInfo({ ...batchInfoResponse, account_type: effectiveAccountType });
       
       // Set form data
       if (detailsResponse?.member_contributions) {
@@ -97,7 +107,7 @@ export default function EditAccountContributionBatchPage() {
           id: contrib.id,
           member_id: contrib.member_id,
           member_name: contrib.member_name,
-          account_id: contrib.account_id,
+          account_id: Number(contrib.account_id) || 0,
           amount: contrib.amount
         }));
         
@@ -130,6 +140,74 @@ export default function EditAccountContributionBatchPage() {
     // This is a workaround to ensure controlled inputs update properly
   }, [searchTerms]);
 
+  const normalizeAccountId = (value: number | string | undefined | null) => {
+    if (value === undefined || value === null) return undefined;
+    const numericId = Number(value);
+    return Number.isNaN(numericId) ? undefined : numericId;
+  };
+
+  const normalizeDateForApi = (value: string | Date | undefined | null) => {
+    if (!value) return undefined;
+
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) return undefined;
+      return value.toISOString();
+    }
+
+    // If it's already an ISO string, return as-is
+    if (typeof value === 'string' && value.includes('T')) {
+      return value;
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      // If parsing fails, assume the value is already in acceptable format
+      if (typeof value === 'string' && value.trim() !== '') return value;
+      return undefined;
+    }
+
+    return date.toISOString();
+  };
+
+  const resolveAccountId = (member: Partial<MemberSuggestion>): number | undefined => {
+    const normalizedAccountType = (batchInfo?.account_type ?? accountTypeParam ?? '').toUpperCase();
+
+    if (normalizedAccountType === 'HEALTH') {
+      const id = normalizeAccountId(member.health_account_id ?? member.account_id);
+      if (id !== undefined) return id;
+    }
+
+    if (normalizedAccountType === 'ANNUITY') {
+      const id = normalizeAccountId(member.annuity_account_id ?? member.account_id);
+      if (id !== undefined) return id;
+    }
+
+    const normalizedType = (batchInfo?.account_type ?? accountTypeParam ?? '').toUpperCase();
+
+    if (normalizedType && Array.isArray(member.accounts)) {
+      const matchingAccount = member.accounts.find(account => account?.account_type?.toUpperCase() === normalizedType);
+      const matchingId = normalizeAccountId(matchingAccount?.id as number | string | undefined);
+      if (matchingId !== undefined) return matchingId;
+    }
+
+    const fallbackId = normalizeAccountId(member.account_id);
+    if (fallbackId !== undefined) return fallbackId;
+
+    if (Array.isArray(member.account_ids)) {
+      const firstId = member.account_ids.find(accountId => accountId !== null && accountId !== undefined);
+      const normalized = normalizeAccountId(firstId as number | string | undefined);
+      if (normalized !== undefined) return normalized;
+    }
+
+    if (Array.isArray(member.accounts)) {
+      const accountWithId = member.accounts.find(account => account?.id !== undefined);
+      const normalized = normalizeAccountId(accountWithId?.id as number | string | undefined);
+      if (normalized !== undefined) return normalized;
+    }
+
+    return undefined;
+  };
+
   // Member autocomplete functionality
   const searchMembers = async (query: string, fieldIndex: number) => {
     if (!query || query.length < 2) {
@@ -139,12 +217,15 @@ export default function EditAccountContributionBatchPage() {
     }
 
     try {
-      const response = await backendApiClient.members.autocomplete?.(query);
+      const response = await (backendApiClient.members.accountAutocomplete
+        ? backendApiClient.members.accountAutocomplete(query)
+        : backendApiClient.members.autocomplete?.(query));
       if (Array.isArray(response)) {
         const formattedMembers: MemberSuggestion[] = response.map((member: any) => ({
           ...member,
-          full_name: `${member.first_name} ${member.last_name}`,
-          isSelected: false
+          full_name: `${member.first_name} ${member.last_name}`.trim(),
+          isSelected: false,
+          resolvedAccountId: resolveAccountId(member)
         }));
         
         setMemberSuggestions(formattedMembers);
@@ -173,7 +254,7 @@ export default function EditAccountContributionBatchPage() {
     form.setValue(`member_contributions.${fieldIndex}.member_name`, value);
   };
 
-  const handleMemberSelect = (member: Member, fieldIndex: number) => {
+  const handleMemberSelect = (member: MemberSuggestion, fieldIndex: number) => {
     // Update both states immediately and synchronously
     setSearchTerms(prev => ({ ...prev, [fieldIndex]: member.full_name }));
     setShowSuggestions(prev => ({ ...prev, [fieldIndex]: false }));
@@ -182,6 +263,14 @@ export default function EditAccountContributionBatchPage() {
     // Update form with selected member
     form.setValue(`member_contributions.${fieldIndex}.member_id`, member.id);
     form.setValue(`member_contributions.${fieldIndex}.member_name`, member.full_name);
+    const accountId = member.resolvedAccountId ?? resolveAccountId(member);
+    if (accountId !== undefined) {
+      form.setValue(`member_contributions.${fieldIndex}.account_id`, accountId);
+      setError(prev => (prev && prev.includes('matching account')) ? null : prev);
+    } else {
+      form.setValue(`member_contributions.${fieldIndex}.account_id`, 0);
+      setError('Selected member does not have a matching account for this batch type.');
+    }
     // Note: when selecting a member via autocomplete, we should also set account_id
     // if the autocomplete API includes account_id. If not, backend details fill it on load.
     
@@ -206,6 +295,7 @@ export default function EditAccountContributionBatchPage() {
     append({
       member_id: 0,
       member_name: '',
+      account_id: 0,
       amount: 0
     });
     
@@ -250,34 +340,46 @@ export default function EditAccountContributionBatchPage() {
         const memberNameValid = contrib.member_name && contrib.member_name.trim().length > 0;
         const memberIdValid = contrib.member_id && contrib.member_id > 0;
         const amountValid = Number(contrib.amount) > 0;
+        const accountIdValid = contrib.account_id && contrib.account_id > 0;
         
-        const isInvalid = !memberNameValid || !memberIdValid || !amountValid;
+        const isInvalid = !memberNameValid || !memberIdValid || !amountValid || !accountIdValid;
         
         return isInvalid;
       });
 
       if (invalidRows) {
-        setError('Please ensure all rows have valid member names and amounts greater than 0.');
+        setError('Please ensure all rows have valid members, linked accounts, and amounts greater than 0.');
         return;
       }
 
       // Calculate total amount from contributions
       const totalAmount = data.member_contributions.reduce((sum, contrib) => sum + Number(contrib.amount), 0);
       
+      const normalizedAccountType = (batchInfo.account_type ?? accountTypeParam ?? '').toUpperCase();
+      if (!normalizedAccountType) {
+        setError('Unable to determine account type for this batch. Please navigate from the account contributions list and try again.');
+        setSaving(false);
+        return;
+      }
+      const normalizedStartDate = normalizeDateForApi(batchInfo.start_date);
+      const normalizedEndDate = normalizeDateForApi(batchInfo.end_date);
+      const normalizedReceivedDate = normalizeDateForApi(batchInfo.received_date);
+
       // Prepare the update data using the create schema structure
       const updateData = {
         contribution_type: batchInfo.contribution_type,
         amount_received: totalAmount, // Update total based on contributions
-        received_date: batchInfo.received_date,
+        received_date: normalizedReceivedDate,
         posted: false, // Keep as false when editing
         suspended: batchInfo.suspended,
-        start_date: batchInfo.start_date,
-        end_date: batchInfo.end_date,
+        start_date: normalizedStartDate,
+        end_date: normalizedEndDate,
+        account_type: normalizedAccountType,
         account_contributions: data.member_contributions.map(contrib => ({
-          account_id: contrib.account_id,
+          account_id: Number(contrib.account_id),
           member_id: contrib.member_id,
           amount: Number(contrib.amount),
-          posted_date: batchInfo.received_date,
+          posted_date: normalizeDateForApi(batchInfo.received_date),
           posted: false,
           suspended: false,
           description: `Contribution for ${contrib.member_name}`

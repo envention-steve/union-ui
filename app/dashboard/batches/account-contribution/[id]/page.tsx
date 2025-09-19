@@ -30,6 +30,7 @@ interface BatchInfo {
   received_date: string;
   created_at: string;
   updated_at: string;
+  account_type?: string;
 }
 
 export default function AccountContributionDetailPage() {
@@ -38,12 +39,15 @@ export default function AccountContributionDetailPage() {
   const searchParams = useSearchParams();
   const id = params?.id as string;
   const mode = searchParams?.get('mode') || 'view';
+  const accountTypeParam = searchParams?.get('account_type') || undefined;
   
   const [batchInfo, setBatchInfo] = useState<BatchInfo | null>(null);
   const [batchDetails, setBatchDetails] = useState<BatchDetailsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<'post' | 'unpost' | null>(null);
+
+  const listRoute = '/dashboard/batches/account-contribution';
 
   const fetchBatchData = async () => {
     if (!id) return;
@@ -58,7 +62,8 @@ export default function AccountContributionDetailPage() {
         backendApiClient.accountContributions.getDetails(id)
       ]);
       
-      setBatchInfo(batchInfoResponse);
+      const effectiveAccountType = batchInfoResponse?.account_type ?? accountTypeParam ?? batchInfoResponse?.account_type;
+      setBatchInfo({ ...batchInfoResponse, account_type: effectiveAccountType });
       setBatchDetails(detailsResponse);
     } catch (err) {
       console.error('Error fetching batch data:', err);
@@ -108,7 +113,17 @@ export default function AccountContributionDetailPage() {
 
   const handleEditBatch = () => {
     // Navigate to edit page
-    router.push(`/dashboard/batches/account-contribution/${id}/edit`);
+    const accountTypeForEdit = batchInfo?.account_type ?? accountTypeParam;
+    const params = new URLSearchParams();
+    if (accountTypeForEdit) {
+      params.set('account_type', accountTypeForEdit);
+    }
+    const query = params.toString();
+    router.push(`/dashboard/batches/account-contribution/${id}/edit${query ? `?${query}` : ''}`);
+  };
+
+  const handleBackToList = () => {
+    router.push(listRoute);
   };
 
   const formatContributionType = (type: string) => {
@@ -164,7 +179,7 @@ export default function AccountContributionDetailPage() {
         <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 
-            onClick={() => router.back()}
+            onClick={handleBackToList}
             className="text-union-600 hover:text-union-700"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -195,7 +210,7 @@ export default function AccountContributionDetailPage() {
         <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 
-            onClick={() => router.back()}
+            onClick={handleBackToList}
             className="text-union-600 hover:text-union-700"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />

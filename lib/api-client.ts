@@ -34,6 +34,7 @@ interface BusinessEndpoints {
   delete: (id: string) => Promise<{ message: string }>;
   // Autocomplete method
   autocomplete?: (query: string) => Promise<any[]>;
+  accountAutocomplete?: (query: string) => Promise<any[]>;
   // Employer-specific methods
   getRates?: (id: string) => Promise<any[]>;
   createRate?: (id: string, data: any) => Promise<any>;
@@ -510,6 +511,9 @@ class AuthenticatedBackendApiClient extends ApiClient {
       
       autocomplete: (query: string) =>
         this.post<any[]>(`/api/v1/members/autocomplete`, query),
+
+      accountAutocomplete: (query: string) =>
+        this.post<any[]>(`/api/v1/members/account_autocomplete`, query),
 
       create: (data: any) =>
         this.post<any>('/api/v1/members', data),

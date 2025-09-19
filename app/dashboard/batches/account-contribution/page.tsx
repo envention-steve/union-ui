@@ -55,6 +55,7 @@ export default function AccountContributionPage() {
             ? new Date(item.start_date).toLocaleDateString()
             : 'N/A',
           type: item.contribution_type || 'Unknown',
+          account_type: item.account_type || 'UNKNOWN',
           status: item.posted ? 'Posted' : 'Unposted',
           amount_received: item.amount_received,
           received_date: item.received_date,
@@ -106,6 +107,9 @@ export default function AccountContributionPage() {
         contribution_type: contributionData.type || '',
         amount_received: contributionData.amount_received?.toString() || '0'
       });
+      if (contributionData.account_type && contributionData.account_type !== 'UNKNOWN') {
+        params.set('account_type', contributionData.account_type);
+      }
       router.push(`/dashboard/batches/account-contribution/${id}?${params.toString()}`);
     } else {
       router.push(`/dashboard/batches/account-contribution/${id}?mode=view`);
@@ -156,6 +160,17 @@ export default function AccountContributionPage() {
       .split('_')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
+  };
+
+  const formatAccountType = (accountType: string) => {
+    switch ((accountType || '').toUpperCase()) {
+      case 'HEALTH':
+        return 'Health';
+      case 'ANNUITY':
+        return 'Annuity';
+      default:
+        return 'Unknown';
+    }
   };
 
   return (
@@ -289,6 +304,7 @@ export default function AccountContributionPage() {
                 <TableRow>
                   <TableHead>Date Range</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Account</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
@@ -301,6 +317,7 @@ export default function AccountContributionPage() {
                     <TableRow key={`loading-${i}`}>
                       <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div></TableCell>
                       <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div></TableCell>
+                      <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div></TableCell>
                       <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-24"></div></TableCell>
                       <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-16"></div></TableCell>
                       <TableCell><div className="h-8 bg-gray-200 rounded animate-pulse w-32"></div></TableCell>
@@ -309,7 +326,7 @@ export default function AccountContributionPage() {
                 ) : contributions.length === 0 ? (
                   // Empty state
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       {startDate || endDate || statusFilter || typeFilter
                         ? 'No contributions found matching your criteria.' 
                         : 'No contributions found.'
@@ -327,6 +344,9 @@ export default function AccountContributionPage() {
                         <Badge variant="outline" className="font-normal">
                           {formatContributionType(contribution.type)}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {formatAccountType(contribution.account_type)}
                       </TableCell>
                       <TableCell className="font-mono text-sm">
                         {contribution.amount_received ? 
