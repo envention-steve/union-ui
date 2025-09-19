@@ -800,6 +800,7 @@ class AuthenticatedBackendApiClient extends ApiClient {
       delete: (id: string) => this.delete<{ message: string }>(`/api/v1/account_contribution_batches/${id}`),
       post: (id: string) => this.post<any>(`/api/v1/account_contribution_batches/${id}/post`),
       unpost: (id: string) => this.post<any>(`/api/v1/account_contribution_batches/${id}/unpost`),
+      updateWithContributions: (id: string, data: any) => this.put<any>(`/api/v1/account_contribution_batches/${id}/with_contributions`, data),
     };
   }
   
