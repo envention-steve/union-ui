@@ -799,7 +799,7 @@ class AuthenticatedBackendApiClient extends ApiClient {
       },
       get: (id: string) => this.get<any>(`/api/v1/account_contribution_batches/${id}`),
       getDetails: (id: string) => this.get<any>(`/api/v1/account_contribution_batches/${id}/details`),
-      create: (data: any) => this.post<any>('/api/v1/account_contribution_batches', data),
+      create: (data: AccountContributionBatchCreate) => this.post<any>('/api/v1/account_contribution_batches', data),
       update: (id: string, data: any) => this.put<any>(`/api/v1/account_contribution_batches/${id}`, data),
       delete: (id: string) => this.delete<{ message: string }>(`/api/v1/account_contribution_batches/${id}`),
       post: (id: string) => this.post<any>(`/api/v1/account_contribution_batches/${id}/post`),

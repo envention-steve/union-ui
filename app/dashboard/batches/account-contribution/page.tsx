@@ -11,9 +11,16 @@ import { Plus, Eye, RotateCcw, Trash2, ChevronLeft, ChevronRight, RefreshCw, Cal
 import { backendApiClient } from '@/lib/api-client';
 import { AccountContribution } from '@/types';
 import { useRouter } from 'next/navigation';
+import { CreateBatchDialog } from '@/components/features/batches/CreateBatchDialog';
+
+const contributionTypes = [
+  { value: 'SELF_PAY', label: 'Self Pay' },
+  { value: 'HEALTH_FUND_BONUS', label: 'Health Fund Bonus' },
+];
 
 export default function AccountContributionPage() {
   const router = useRouter();
+  const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -192,9 +199,12 @@ export default function AccountContributionPage() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Reload List
           </Button>
-          <Button className="bg-union-600 hover:bg-union-700 text-white">
+          <Button 
+            className="bg-union-600 hover:bg-union-700 text-white"
+            onClick={() => setCreateDialogOpen(true)}
+          >
             <Plus className="mr-2 h-4 w-4" />
-            Add Contribution
+            Create Batch
           </Button>
         </div>
       </div>
@@ -350,7 +360,7 @@ export default function AccountContributionPage() {
                       </TableCell>
                       <TableCell className="font-mono text-sm">
                         {contribution.amount_received ? 
-                          `$${contribution.amount_received.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                          `${contribution.amount_received.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
                           : 'N/A'
                         }
                       </TableCell>
@@ -465,6 +475,12 @@ export default function AccountContributionPage() {
           </div>
         </div>
       )}
+
+      <CreateBatchDialog 
+        isOpen={isCreateDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        contributionTypes={contributionTypes}
+      />
     </div>
   );
 }

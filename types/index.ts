@@ -548,3 +548,16 @@ export type Theme = 'light' | 'dark' | 'system';
 
 // Status types
 export type Status = 'idle' | 'loading' | 'success' | 'error';
+
+// Account Contribution Batch Create type
+export interface AccountContributionBatchCreate {
+  start_date: string; // ISO 8601 format
+  end_date: string;   // ISO 8601 format
+  received_date: string; // ISO 8601 format
+  contribution_type: string;
+  account_type: string;
+  posted: boolean;
+  suspended: boolean;
+  amount_received: number;
+  account_contributions: any[];
+}

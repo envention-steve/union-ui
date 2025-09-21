@@ -140,3 +140,48 @@ jest.mock('next/server', () => {
     }
   }
 })
+
+// Polyfill for Pointer Events for Radix UI components in tests
+if (!global.PointerEvent) {
+  class PointerEvent extends MouseEvent {
+    constructor(type, params) {
+      super(type, params);
+      this.pointerId = params.pointerId;
+      this.width = params.width;
+      this.height = params.height;
+      this.pressure = params.pressure;
+      this.tangentialPressure = params.tangentialPressure;
+      this.tiltX = params.tiltX;
+      this.tiltY = params.tiltY;
+      this.twist = params.twist;
+      this.pointerType = params.pointerType;
+      this.isPrimary = params.isPrimary;
+    }
+  }
+  global.PointerEvent = PointerEvent;
+}
+
+if (!global.Element.prototype.hasPointerCapture) {
+  global.Element.prototype.hasPointerCapture = jest.fn();
+  global.Element.prototype.setPointerCapture = jest.fn();
+  global.Element.prototype.releasePointerCapture = jest.fn();
+}
+
+if (!global.Element.prototype.scrollIntoView) {
+  global.Element.prototype.scrollIntoView = jest.fn();
+}
+
+// Mock window.matchMedia for sonner component
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: jest.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(), // deprecated
+    removeListener: jest.fn(), // deprecated
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  })),
+});
