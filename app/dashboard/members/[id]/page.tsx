@@ -3435,7 +3435,6 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                       <TableHead className="w-12"></TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Transaction Type</TableHead>
-                      <TableHead>Period Year End</TableHead>
                       <TableHead className="text-right">Health</TableHead>
                       <TableHead className="text-right">Annuity</TableHead>
                     </TableRow>
@@ -3448,7 +3447,6 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                           <TableCell><div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div></TableCell>
                           <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div></TableCell>
                           <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div></TableCell>
-                          <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div></TableCell>
                           <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-16 ml-auto"></div></TableCell>
                           <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-16 ml-auto"></div></TableCell>
                         </TableRow>
@@ -3456,7 +3454,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                     ) : ledgerEntries.length === 0 ? (
                       // Empty state
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                           No ledger entries found.
                         </TableCell>
                       </TableRow>
@@ -3483,10 +3481,6 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                                 {entry.posted_date ? new Date(entry.posted_date).toLocaleDateString() : 'N/A'}
                               </TableCell>
                               <TableCell>{getLedgerEntryTypeDisplayName(entry.type)}</TableCell>
-                              <TableCell>
-                                {/* TODO: This should come from related data */}
-                                2026-07-31
-                              </TableCell>
                               <TableCell className="text-right">
                                 {isHealth ? (
                                   <span className={entry.amount < 0 ? 'text-red-600' : 'text-green-600'}>
@@ -3506,7 +3500,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                             {/* Expanded detail row */}
                             {isExpanded && (
                               <TableRow>
-                                <TableCell colSpan={6} className="bg-gray-50 p-6">
+                                <TableCell colSpan={5} className="bg-gray-50 p-6">
                                   <LedgerEntryExpandedDetails entry={entry as PolymorphicLedgerEntry} />
                                 </TableCell>
                               </TableRow>

@@ -645,7 +645,7 @@ export default function EditAccountContributionBatchPage() {
                           className="w-full text-union-600 hover:text-union-700 border-dashed"
                         >
                           <Plus className="h-4 w-4 mr-2" />
-                          Add Member Contribution
+                          Add Account Contribution
                         </Button>
                       </TableCell>
                     </TableRow>

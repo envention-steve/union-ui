@@ -238,11 +238,27 @@ class AuthenticatedBackendApiClient extends ApiClient {
   accountContributions!: {
     list: (params?: { page?: number; limit?: number; start_date?: string; end_date?: string; status?: string; type?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
     get: (id: string) => Promise<any>;
+    getDetails: (id: string) => Promise<any>;
     create: (data: any) => Promise<any>;
     update: (id: string, data: any) => Promise<any>;
     delete: (id: string) => Promise<{ message: string }>;
     post: (id: string) => Promise<any>;
     unpost: (id: string) => Promise<any>;
+    updateWithContributions: (id: string, data: any) => Promise<any>;
+  };
+  employerContributionBatches!: {
+    list: (params?: { page?: number; limit?: number }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
+    get: (id: string) => Promise<any>;
+    getDetails: (id: string) => Promise<any>;
+    create: (data: any) => Promise<any>;
+    update: (id: string, data: any) => Promise<any>;
+    delete: (id: string) => Promise<{ message: string }>;
+    post: (id: string) => Promise<any>;
+    unpost: (id: string) => Promise<any>;
+    updateWithContributions: (id: string, data: any) => Promise<any>;
+  };
+  employerRates!: {
+    list: (params: { employerId: number | string }) => Promise<any[]>;
   };
 
   constructor(baseURL: string) {
@@ -805,6 +821,46 @@ class AuthenticatedBackendApiClient extends ApiClient {
       post: (id: string) => this.post<any>(`/api/v1/account_contribution_batches/${id}/post`),
       unpost: (id: string) => this.post<any>(`/api/v1/account_contribution_batches/${id}/unpost`),
       updateWithContributions: (id: string, data: any) => this.put<any>(`/api/v1/account_contribution_batches/${id}/with_contributions`, data),
+    };
+
+    this.employerContributionBatches = {
+      list: async (params?: { page?: number; limit?: number }) => {
+        const queryParams: Record<string, any> = {};
+        if (params?.page !== undefined && params?.limit !== undefined) {
+          queryParams.skip = (params.page - 1) * params.limit;
+          queryParams.limit = params.limit;
+        } else {
+          queryParams.limit = 25;
+        }
+
+        const response = await this.get<any[]>(`/api/v1/employer_contribution_batches`, queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+
+        return {
+          items: response,
+          total,
+          page: params?.page || 1,
+          limit: params?.limit || 25,
+        };
+      },
+      get: (id: string) => this.get<any>(`/api/v1/employer_contribution_batches/${id}`),
+      getDetails: (id: string) => this.get<any>(`/api/v1/employer_contribution_batches/${id}/details`),
+      create: (data: any) => this.post<any>(`/api/v1/employer_contribution_batches`, data),
+      update: (id: string, data: any) => this.put<any>(`/api/v1/employer_contribution_batches/${id}`, data),
+      delete: (id: string) => this.delete<{ message: string }>(`/api/v1/employer_contribution_batches/${id}`),
+      post: (id: string) => this.post<any>(`/api/v1/employer_contribution_batches/${id}/post`),
+      unpost: (id: string) => this.post<any>(`/api/v1/employer_contribution_batches/${id}/unpost`),
+      updateWithContributions: (id: string, data: any) => this.put<any>(`/api/v1/employer_contribution_batches/${id}/with_contributions`, data),
+    };
+
+    this.employerRates = {
+      list: async ({ employerId }: { employerId: number | string }) => {
+        if (employerId === undefined || employerId === null) {
+          throw new Error('employerId is required to fetch employer rates');
+        }
+        return this.get<any[]>(`/api/v1/employers/${employerId}/employer_rates`);
+      },
     };
   }
   

@@ -266,14 +266,6 @@ export default function AccountContributionDetailPage() {
               </Button>
             </>
           )}
-          <Button
-            variant="outline"
-            onClick={fetchBatchData}
-            className="text-union-600 hover:text-union-700"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
         </div>
       </div>
 

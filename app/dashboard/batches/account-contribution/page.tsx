@@ -144,11 +144,6 @@ export default function AccountContributionPage() {
       setError('Failed to delete contribution.');
     }
   };
-
-  const handleReloadList = () => {
-    fetchContributions();
-  };
-
   const getStatusBadgeColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'posted':
@@ -191,14 +186,6 @@ export default function AccountContributionPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleReloadList}
-            className="text-union-600 hover:text-union-700"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Reload List
-          </Button>
           <Button 
             className="bg-union-600 hover:bg-union-700 text-white"
             onClick={() => setCreateDialogOpen(true)}
