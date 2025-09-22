@@ -102,6 +102,13 @@ interface MemberAutocompleteApiItem {
   unique_id?: string;
 }
 
+interface EmployerAutocompletePayload {
+  search_term: string;
+  employer_id: number | string;
+  start_date?: string;
+  end_date?: string;
+}
+
 export default function EmployerContributionBatchDetailsPage() {
   const params = useParams();
   const router = useRouter();
@@ -315,9 +322,22 @@ export default function EmployerContributionBatchDetailsPage() {
       return;
     }
 
+    const employerId = batchInfo?.employer_id ?? 0;
+    if (!employerId) {
+      setMemberSuggestions([]);
+      setShowSuggestions((prev) => ({ ...prev, [index]: false }));
+      return;
+    }
+    const payload: EmployerAutocompletePayload = {
+      search_term: query,
+      employer_id: employerId,
+      start_date: batchInfo?.start_date,
+      end_date: batchInfo?.end_date,
+    };
+
     try {
-      const response = await (backendApiClient.members.accountAutocomplete
-        ? backendApiClient.members.accountAutocomplete(query)
+      const response = await (backendApiClient.members.employerAutocomplete
+        ? backendApiClient.members.employerAutocomplete(payload)
         : backendApiClient.members.autocomplete?.(query));
 
       if (Array.isArray(response)) {
@@ -609,16 +629,15 @@ export default function EmployerContributionBatchDetailsPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <CardHeader>
+          <div className="space-y-1">
             <CardTitle className="text-lg">Employer Contributions</CardTitle>
             <CardDescription>
-              {isEditable ? 'Search for members, enter hours, and choose a rate to calculate contributions.' : 'This batch is posted and read-only.'}
+              {isEditable
+                ? 'Search for members, enter hours, choose a rate, and add each contribution entry.'
+                : 'This batch is posted and read-only.'}
             </CardDescription>
           </div>
-          <Button onClick={handleAddContribution} disabled={!isEditable}>
-            <Plus className="mr-2 h-4 w-4" /> Add Member
-          </Button>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -636,7 +655,7 @@ export default function EmployerContributionBatchDetailsPage() {
                 {fields.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                      No contributions yet. {isEditable ? 'Use “Add Member” to start.' : ''}
+                      No contributions yet. {isEditable ? 'Use “Add contribution” to start.' : ''}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -668,11 +687,11 @@ export default function EmployerContributionBatchDetailsPage() {
                           )}
                           {showSuggestions[index] && memberSuggestions.length > 0 && (
                             <div className="absolute z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg">
-                              {memberSuggestions.map((member) => (
+                          {memberSuggestions.map((member) => (
                                 <button
                                   type="button"
                                   key={member.id}
-                                  className="w-full px-3 py-2 text-left hover:bg-gray-100"
+                                  className="block w-full px-3 py-2 text-left hover:bg-gray-100"
                                   onMouseDown={(event) => event.preventDefault()}
                                   onClick={() => handleMemberSelect(member, index)}
                                 >
@@ -731,6 +750,21 @@ export default function EmployerContributionBatchDetailsPage() {
                       </TableCell>
                     </TableRow>
                   ))
+                )}
+                {isEditable && (
+                  <TableRow>
+                    <TableCell colSpan={5}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleAddContribution}
+                        className="w-full border-dashed text-union-600 hover:text-union-700"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Contribution
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>

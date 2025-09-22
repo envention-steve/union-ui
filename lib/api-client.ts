@@ -528,6 +528,15 @@ class AuthenticatedBackendApiClient extends ApiClient {
       autocomplete: (query: string) =>
         this.post<any[]>(`/api/v1/members/autocomplete`, query),
 
+      employerAutocomplete: (payload: {
+        search_term: string;
+        employer_id: number | string;
+        start_date?: string;
+        end_date?: string;
+      }) => {
+        return this.post<any[]>(`/api/v1/members/employer_autocomplete`, payload);
+      },
+
       accountAutocomplete: (query: string) =>
         this.post<any[]>(`/api/v1/members/account_autocomplete`, query),
 
