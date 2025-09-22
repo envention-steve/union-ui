@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Eye, Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Eye, Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { backendApiClient } from '@/lib/api-client';
 import { CreateEmployerContributionBatchDialog } from '@/components/features/batches/CreateEmployerContributionBatchDialog';
 
@@ -48,6 +49,35 @@ export default function EmployerContributionPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalBatches, setTotalBatches] = useState(0);
   const [refreshToggle, setRefreshToggle] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedEmployer, setSelectedEmployer] = useState('');
+  const [employers, setEmployers] = useState<EmployerSummary[]>([]);
+  const [employersLoading, setEmployersLoading] = useState(true);
+  const [employersError, setEmployersError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchEmployers = async () => {
+      try {
+        setEmployersLoading(true);
+        setEmployersError(null);
+        const response = await backendApiClient.employers.list({ page: 1, limit: 100 });
+        setEmployers(response.items ?? []);
+      } catch (fetchError) {
+        console.error('Failed to load employers', fetchError);
+        setEmployersError('Failed to load employers. Filters may be limited.');
+        setEmployers([]);
+      } finally {
+        setEmployersLoading(false);
+      }
+    };
+
+    fetchEmployers();
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedEmployer, startDate, endDate]);
 
   useEffect(() => {
     const fetchBatches = async () => {
@@ -57,6 +87,12 @@ export default function EmployerContributionPage() {
         const response = await backendApiClient.employerContributionBatches.list({
           page: currentPage,
           limit: itemsPerPage,
+          employerId:
+            selectedEmployer && !Number.isNaN(Number(selectedEmployer))
+              ? Number(selectedEmployer)
+              : undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
         });
         const paginated = response as PaginatedResponse<EmployerContributionBatchListItem>;
         setBatches(paginated.items ?? []);
@@ -72,7 +108,7 @@ export default function EmployerContributionPage() {
     };
 
     fetchBatches();
-  }, [currentPage, itemsPerPage, refreshToggle]);
+  }, [currentPage, itemsPerPage, refreshToggle, selectedEmployer, startDate, endDate]);
 
   const totalPages = useMemo(() => {
     if (itemsPerPage === 0) return 1;
@@ -137,6 +173,14 @@ export default function EmployerContributionPage() {
     return date.toLocaleDateString();
   };
 
+  const filterApplied = Boolean(selectedEmployer || startDate || endDate);
+
+  const handleResetFilters = () => {
+    setSelectedEmployer('');
+    setStartDate('');
+    setEndDate('');
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -151,6 +195,61 @@ export default function EmployerContributionPage() {
           </Button>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Filters</CardTitle>
+          <CardDescription>Select an employer or date range to narrow down the batches.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end">
+            <div className="flex-1">
+              <Select
+                value={selectedEmployer || 'all'}
+                onValueChange={(value) => setSelectedEmployer(value === 'all' ? '' : value)}
+              >
+                <SelectTrigger className="w-full" disabled={employersLoading}>
+                  <SelectValue placeholder={employersLoading ? 'Loading employers...' : 'All employers'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All employers</SelectItem>
+                  {employers.map((employer) => (
+                    <SelectItem key={employer.id} value={String(employer.id)}>
+                      {employer.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {employersError && <p className="mt-2 text-sm text-red-600">{employersError}</p>}
+            </div>
+            <div className="flex flex-1 flex-col gap-4 sm:flex-row">
+              <div className="relative flex-1">
+                <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="date"
+                  placeholder="Start date"
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <div className="relative flex-1">
+                <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="date"
+                  placeholder="End date"
+                  value={endDate}
+                  onChange={(event) => setEndDate(event.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Button variant="outline" className="md:w-auto" onClick={handleResetFilters} disabled={!filterApplied}>
+              Clear filters
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {error && (
         <Card>
@@ -198,7 +297,9 @@ export default function EmployerContributionPage() {
                 ) : batches.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                      No employer contribution batches found.
+                      {filterApplied
+                        ? 'No employer contribution batches found for the selected filters.'
+                        : 'No employer contribution batches found.'}
                     </TableCell>
                   </TableRow>
                 ) : (

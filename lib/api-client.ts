@@ -247,7 +247,13 @@ class AuthenticatedBackendApiClient extends ApiClient {
     updateWithContributions: (id: string, data: any) => Promise<any>;
   };
   employerContributionBatches!: {
-    list: (params?: { page?: number; limit?: number }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
+    list: (params?: {
+      page?: number;
+      limit?: number;
+      employerId?: number | string;
+      startDate?: string;
+      endDate?: string;
+    }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
     get: (id: string) => Promise<any>;
     getDetails: (id: string) => Promise<any>;
     create: (data: any) => Promise<any>;
@@ -833,13 +839,31 @@ class AuthenticatedBackendApiClient extends ApiClient {
     };
 
     this.employerContributionBatches = {
-      list: async (params?: { page?: number; limit?: number }) => {
+      list: async (params?: {
+        page?: number;
+        limit?: number;
+        employerId?: number | string;
+        startDate?: string;
+        endDate?: string;
+      }) => {
         const queryParams: Record<string, any> = {};
         if (params?.page !== undefined && params?.limit !== undefined) {
           queryParams.skip = (params.page - 1) * params.limit;
           queryParams.limit = params.limit;
         } else {
           queryParams.limit = 25;
+        }
+
+        if (params?.employerId !== undefined && params.employerId !== null && params.employerId !== '') {
+          queryParams.employer_id = params.employerId;
+        }
+
+        if (params?.startDate) {
+          queryParams.start_date = params.startDate;
+        }
+
+        if (params?.endDate) {
+          queryParams.end_date = params.endDate;
         }
 
         const response = await this.get<any[]>(`/api/v1/employer_contribution_batches`, queryParams);
