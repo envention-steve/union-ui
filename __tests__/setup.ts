@@ -142,6 +142,15 @@ jest.mock('next/server', () => {
 })
 
 // Polyfill for Pointer Events for Radix UI components in tests
+// Polyfill MouseEvent if not present (Node environment)
+if (typeof global.MouseEvent === 'undefined') {
+  global.MouseEvent = class MouseEvent {
+    constructor(type, params) {
+      this.type = type;
+      Object.assign(this, params);
+    }
+  };
+}
 if (!global.PointerEvent) {
   class PointerEvent extends MouseEvent {
     constructor(type, params) {
@@ -161,7 +170,22 @@ if (!global.PointerEvent) {
   global.PointerEvent = PointerEvent;
 }
 
-if (!global.Element.prototype.hasPointerCapture) {
+// Safely polyfill Element prototype methods when running in the Node/jsdom test
+if (typeof global.Element !== 'undefined' && global.Element && typeof global.Element.prototype === 'object') {
+  if (!global.Element.prototype.hasPointerCapture) {
+    global.Element.prototype.hasPointerCapture = jest.fn();
+  }
+  if (!global.Element.prototype.setPointerCapture) {
+    global.Element.prototype.setPointerCapture = jest.fn();
+  }
+  if (!global.Element.prototype.releasePointerCapture) {
+    global.Element.prototype.releasePointerCapture = jest.fn();
+  }
+} else {
+  // Provide a minimal Element mock so tests that reference Element.prototype don't crash
+  // This keeps the runtime safe in environments where Element is not defined.
+  global.Element = global.Element || function Element() {}
+  global.Element.prototype = global.Element.prototype || {}
   global.Element.prototype.hasPointerCapture = jest.fn();
   global.Element.prototype.setPointerCapture = jest.fn();
   global.Element.prototype.releasePointerCapture = jest.fn();
@@ -171,17 +195,19 @@ if (!global.Element.prototype.scrollIntoView) {
   global.Element.prototype.scrollIntoView = jest.fn();
 }
 
-// Mock window.matchMedia for sonner component
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: jest.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(), // deprecated
-    removeListener: jest.fn(), // deprecated
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
+// Mock window.matchMedia for sonner component (only when `window` exists)
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: jest.fn().mockImplementation(query => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(), // deprecated
+      removeListener: jest.fn(), // deprecated
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    })),
+  });
+}

@@ -193,25 +193,32 @@ describe('Layout Components', () => {
     it('should render all navigation links with correct hrefs', () => {
       render(<DashboardSidebar />)
       
-      expect(screen.getByRole('link', { name: /members/i })).toHaveAttribute('href', '/dashboard/members')
-      expect(screen.getByRole('link', { name: /employers/i })).toHaveAttribute('href', '/dashboard/employers')
-      expect(screen.getByRole('link', { name: /insurance plans/i })).toHaveAttribute('href', '/dashboard/insurance-plans')
-      expect(screen.getByRole('link', { name: /batches/i })).toHaveAttribute('href', '/dashboard/batches')
-      expect(screen.getByRole('link', { name: /reports/i })).toHaveAttribute('href', '/dashboard/reports')
-      expect(screen.getByRole('link', { name: /admin settings/i })).toHaveAttribute('href', '/dashboard/admin-settings')
+  expect(screen.getByRole('link', { name: /members/i })).toHaveAttribute('href', '/dashboard/members')
+  expect(screen.getByRole('link', { name: /employers/i })).toHaveAttribute('href', '/dashboard/employers')
+  expect(screen.getByRole('link', { name: /insurance plans/i })).toHaveAttribute('href', '/dashboard/insurance-plans')
+  expect(screen.getByRole('button', { name: /batches/i })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /reports/i })).toHaveAttribute('href', '/dashboard/reports')
+  expect(screen.getByRole('link', { name: /admin settings/i })).toHaveAttribute('href', '/dashboard/admin-settings')
     })
 
     it('should render icons for each navigation item', () => {
       render(<DashboardSidebar />)
       
       // All navigation items should have icons
-      const navItems = ['Members', 'Employers', 'Insurance Plans', 'Batches', 'Reports', 'Admin Settings']
+      const navItems = [
+        { name: 'Members', role: 'link' },
+        { name: 'Employers', role: 'link' },
+        { name: 'Insurance Plans', role: 'link' },
+        { name: 'Batches', role: 'button' },
+        { name: 'Reports', role: 'link' },
+        { name: 'Admin Settings', role: 'link' },
+      ];
       navItems.forEach(item => {
-        const link = screen.getByRole('link', { name: new RegExp(item, 'i') })
-        const icon = link.querySelector('svg')
-        expect(icon).toBeInTheDocument()
-        expect(icon).toHaveClass('mr-2', 'h-4', 'w-4')
-      })
+        const el = screen.getByRole(item.role, { name: new RegExp(item.name, 'i') });
+        const icon = el.querySelector('svg');
+        expect(icon).toBeInTheDocument();
+        expect(icon).toHaveClass('mr-2', 'h-4', 'w-4');
+      });
     })
 
     it('should have proper sidebar structure', () => {

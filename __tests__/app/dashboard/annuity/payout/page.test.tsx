@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import AnnuityPayoutPage from '@/app/dashboard/annuity/payout/page';
 import '@testing-library/jest-dom';
+import { toast } from 'sonner';
 
 // Mock the toast function
 jest.mock('sonner', () => ({
@@ -9,21 +9,28 @@ jest.mock('sonner', () => ({
   },
 }));
 
-// Mock the AnnuityPayoutForm component
-const mockAnnuityPayoutForm = jest.fn(({ onSubmit }: { onSubmit: (data: any) => void }) => (
-  <div data-testid="annuity-payout-form">
-    <button 
-      onClick={() => onSubmit({ distributionAmount: 1000 })}
-      data-testid="mock-submit-button"
-    >
-      Mock Submit
-    </button>
-  </div>
-));
+// Use doMock inside a beforeEach so we can control initialization order
+let mockAnnuityPayoutForm: jest.Mock;
+beforeEach(() => {
+  jest.resetModules();
+  mockAnnuityPayoutForm = jest.fn(({ onSubmit }: { onSubmit: (data: unknown) => void }) => (
+    <div data-testid="annuity-payout-form">
+      <button 
+        onClick={() => onSubmit({ distributionAmount: 1000 })}
+        data-testid="mock-submit-button"
+      >
+        Mock Submit
+      </button>
+    </div>
+  ));
 
-jest.mock('@/components/features/annuity/annuity-payout-form', () => ({
-  AnnuityPayoutForm: mockAnnuityPayoutForm,
-}));
+  jest.doMock('@/components/features/annuity/annuity-payout-form', () => ({
+    AnnuityPayoutForm: mockAnnuityPayoutForm,
+  }));
+});
+
+// Import the page after setting up mocks
+import AnnuityPayoutPage from '@/app/dashboard/annuity/payout/page';
 
 describe('AnnuityPayoutPage', () => {
   it('renders the page title correctly', () => {
@@ -45,7 +52,7 @@ describe('AnnuityPayoutPage', () => {
   });
 
   it('handles form submission correctly', () => {
-    const { toast } = require('sonner');
+  // toast is imported
     
     render(<AnnuityPayoutPage />);
     
@@ -82,7 +89,7 @@ describe('AnnuityPayoutPage', () => {
   });
 
   it('formats currency correctly in toast message', () => {
-    const { toast } = require('sonner');
+  // toast is imported
     
     render(<AnnuityPayoutPage />);
     
@@ -101,7 +108,10 @@ describe('AnnuityPayoutPage', () => {
     // Update the mock to return 0
     jest.clearAllMocks();
     
-    mockAnnuityPayoutForm.mockImplementation(({ onSubmit }: { onSubmit: (data: any) => void }) => (
+  mockAnnuityPayoutForm.mockImplementation(({ onSubmit }: { onSubmit: (data: unknown) => void }) => (
+      <div data-testid="annuity-payout-form">
+        <button
+          onClick={() => onSubmit({ distributionAmount: 0 })}
           data-testid="mock-submit-button-zero"
         >
           Mock Submit Zero
@@ -109,7 +119,7 @@ describe('AnnuityPayoutPage', () => {
       </div>
     ));
     
-    const { toast } = require('sonner');
+  // toast is imported
     
     render(<AnnuityPayoutPage />);
     
@@ -128,7 +138,7 @@ describe('AnnuityPayoutPage', () => {
     // Update the mock to return undefined distribution amount
     jest.clearAllMocks();
     
-    mockAnnuityPayoutForm.mockImplementation(({ onSubmit }: { onSubmit: (data: any) => void }) => (
+  mockAnnuityPayoutForm.mockImplementation(({ onSubmit }: { onSubmit: (data: unknown) => void }) => (
       <div data-testid="annuity-payout-form">
         <button 
           onClick={() => onSubmit({})}
@@ -139,7 +149,7 @@ describe('AnnuityPayoutPage', () => {
       </div>
     ));
     
-    const { toast } = require('sonner');
+  // toast is imported
     
     render(<AnnuityPayoutPage />);
     

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { PayoutCalculator } from '@/components/features/annuity/payout-calculator';
 import '@testing-library/jest-dom';
 
@@ -30,7 +30,13 @@ describe('PayoutCalculator', () => {
     );
 
     expect(screen.getByText('Current Annuity Fund Balance:')).toBeInTheDocument();
-    expect(screen.getByText('$10,000.00')).toBeInTheDocument();
+    // Scope the currency check to avoid matching multiple places with same text
+    const balanceRow = screen.getByText('Current Annuity Fund Balance:').closest('div');
+    if (balanceRow) {
+      expect(within(balanceRow).getByText('$10,000.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$10,000.00')).toBeInTheDocument();
+    }
   });
 
   it('calculates payout amount correctly', () => {
@@ -47,7 +53,12 @@ describe('PayoutCalculator', () => {
     );
 
     expect(screen.getByText('Payout Amount:')).toBeInTheDocument();
-    expect(screen.getByText('$1,000.00')).toBeInTheDocument();
+    const payoutRow = screen.getByText('Payout Amount:').closest('div');
+    if (payoutRow) {
+      expect(within(payoutRow).getByText('$1,000.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$1,000.00')).toBeInTheDocument();
+    }
   });
 
   it('shows annuity fee when checked', () => {
@@ -64,7 +75,12 @@ describe('PayoutCalculator', () => {
     );
 
     expect(screen.getByText('Annuity Fee:')).toBeInTheDocument();
-    expect(screen.getByText('$25.00')).toBeInTheDocument();
+    const feeRow = screen.getByText('Annuity Fee:').closest('div');
+    if (feeRow) {
+      expect(within(feeRow).getByText('$25.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$25.00')).toBeInTheDocument();
+    }
   });
 
   it('shows no annuity fee when unchecked', () => {
@@ -81,7 +97,12 @@ describe('PayoutCalculator', () => {
     );
 
     expect(screen.getByText('Annuity Fee:')).toBeInTheDocument();
-    expect(screen.getByText('$0.00')).toBeInTheDocument();
+    const feeRow2 = screen.getByText('Annuity Fee:').closest('div');
+    if (feeRow2) {
+      expect(within(feeRow2).getByText('$0.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$0.00')).toBeInTheDocument();
+    }
   });
 
   it('calculates federal tax by rate correctly', () => {
@@ -99,7 +120,12 @@ describe('PayoutCalculator', () => {
     );
 
     expect(screen.getByText(/Federal Tax \(10%\):/)).toBeInTheDocument();
-    expect(screen.getByText('$100.00')).toBeInTheDocument();
+    const taxRow = screen.getByText(/Federal Tax \(10%\):/).closest('div');
+    if (taxRow) {
+      expect(within(taxRow).getByText('$100.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$100.00')).toBeInTheDocument();
+    }
   });
 
   it('calculates federal tax by amount correctly', () => {
@@ -116,7 +142,12 @@ describe('PayoutCalculator', () => {
     );
 
     expect(screen.getByText('Federal Tax :')).toBeInTheDocument();
-    expect(screen.getByText('$150.00')).toBeInTheDocument();
+    const taxRow2 = screen.getByText('Federal Tax :').closest('div');
+    if (taxRow2) {
+      expect(within(taxRow2).getByText('$150.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$150.00')).toBeInTheDocument();
+    }
   });
 
   it('calculates distribution amount correctly', () => {
@@ -136,7 +167,12 @@ describe('PayoutCalculator', () => {
 
     // Distribution = $1000 - $25 (fee) - $100 (10% tax) = $875
     expect(screen.getByText('Distribution Amount:')).toBeInTheDocument();
-    expect(screen.getByText('$875.00')).toBeInTheDocument();
+    const distRow = screen.getByText('Distribution Amount:').closest('div');
+    if (distRow) {
+      expect(within(distRow).getByText('$875.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$875.00')).toBeInTheDocument();
+    }
   });
 
   it('handles zero values gracefully', () => {
@@ -152,7 +188,12 @@ describe('PayoutCalculator', () => {
       />
     );
 
-    expect(screen.getByText('$0.00')).toBeInTheDocument();
+    const payoutRowZero = screen.getByText('Payout Amount:').closest('div');
+    if (payoutRowZero) {
+      expect(within(payoutRowZero).getByText('$0.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$0.00')).toBeInTheDocument();
+    }
   });
 
   it('shows warning for negative distribution amount', () => {
@@ -171,7 +212,12 @@ describe('PayoutCalculator', () => {
     );
 
     // Should show negative amount and warning
-    expect(screen.getByText('-$115.00')).toBeInTheDocument();
+    const negRow = screen.getByText('Distribution Amount:').closest('div');
+    if (negRow) {
+      expect(within(negRow).getByText('-$115.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('-$115.00')).toBeInTheDocument();
+    }
     expect(screen.getByText(/warning/i)).toBeInTheDocument();
     expect(screen.getByText(/distribution amount is negative/i)).toBeInTheDocument();
   });
@@ -184,8 +230,8 @@ describe('PayoutCalculator', () => {
       />
     );
 
-    expect(screen.getByText(/note:/i)).toBeInTheDocument();
-    expect(screen.getByText(/distribution amount is calculated/i)).toBeInTheDocument();
+  expect(screen.getByText(/note:/i)).toBeInTheDocument();
+  expect(screen.getByText(/distribution amount is calculated/i)).toBeInTheDocument();
   });
 
   it('formats currency correctly for large amounts', () => {
@@ -201,7 +247,12 @@ describe('PayoutCalculator', () => {
       />
     );
 
-    expect(screen.getByText('$10,000.00')).toBeInTheDocument();
+    const largePayoutRow = screen.getByText('Payout Amount:').closest('div');
+    if (largePayoutRow) {
+      expect(within(largePayoutRow).getByText('$10,000.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$10,000.00')).toBeInTheDocument();
+    }
   });
 
   it('handles empty payout amount', () => {
@@ -217,7 +268,12 @@ describe('PayoutCalculator', () => {
       />
     );
 
-    expect(screen.getByText('$0.00')).toBeInTheDocument();
+    const payoutRowEmpty = screen.getByText('Payout Amount:').closest('div');
+    if (payoutRowEmpty) {
+      expect(within(payoutRowEmpty).getByText('$0.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$0.00')).toBeInTheDocument();
+    }
   });
 
   it('applies sticky positioning class', () => {
@@ -260,7 +316,12 @@ describe('PayoutCalculator', () => {
       />
     );
 
-    expect(screen.getByText('$1,000.00')).toBeInTheDocument();
+    const updPayoutRow = screen.getByText('Payout Amount:').closest('div');
+    if (updPayoutRow) {
+      expect(within(updPayoutRow).getByText('$1,000.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$1,000.00')).toBeInTheDocument();
+    }
 
     const updatedFormData = {
       ...defaultFormData,
@@ -274,7 +335,12 @@ describe('PayoutCalculator', () => {
       />
     );
 
-    expect(screen.getByText('$2,000.00')).toBeInTheDocument();
+    const updPayoutRow2 = screen.getByText('Payout Amount:').closest('div');
+    if (updPayoutRow2) {
+      expect(within(updPayoutRow2).getByText('$2,000.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$2,000.00')).toBeInTheDocument();
+    }
   });
 
   it('handles decimal payout amounts', () => {
@@ -290,7 +356,12 @@ describe('PayoutCalculator', () => {
       />
     );
 
-    expect(screen.getByText('$1,000.50')).toBeInTheDocument();
+    const decPayoutRow = screen.getByText('Payout Amount:').closest('div');
+    if (decPayoutRow) {
+      expect(within(decPayoutRow).getByText('$1,000.50')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$1,000.50')).toBeInTheDocument();
+    }
   });
 
   it('handles invalid number inputs gracefully', () => {
@@ -307,7 +378,20 @@ describe('PayoutCalculator', () => {
       />
     );
 
-    // Should default to 0 for invalid inputs
-    expect(screen.getAllByText('$0.00')).toHaveLength(3); // Payout, tax, and distribution
+    // Should default to 0 for invalid inputs - assert each specific row
+    const payoutInvalidRow = screen.getByText('Payout Amount:').closest('div');
+    if (payoutInvalidRow) {
+      expect(within(payoutInvalidRow).getByText('$0.00')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('$0.00')).toBeInTheDocument();
+    }
+    const taxInvalidRow = screen.getByText(/Federal Tax/).closest('div');
+    if (taxInvalidRow) {
+      expect(within(taxInvalidRow).getByText('$0.00')).toBeInTheDocument();
+    }
+    const distInvalidRow = screen.getByText('Distribution Amount:').closest('div');
+    if (distInvalidRow) {
+      expect(within(distInvalidRow).getByText('$0.00')).toBeInTheDocument();
+    }
   });
 });

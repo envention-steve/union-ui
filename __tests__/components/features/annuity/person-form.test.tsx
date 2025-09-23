@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useForm } from 'react-hook-form';
@@ -24,10 +25,17 @@ function TestWrapper({ children, defaultValues = {} }: { children: React.ReactNo
     },
   });
 
+  const childrenWithForm = React.Children.map(children, (child) => {
+    if (React.isValidElement(child)) {
+      return React.cloneElement(child, { form });
+    }
+    return child;
+  });
+
   return (
     <Form {...form}>
       <form>
-        {children}
+        {childrenWithForm}
       </form>
     </Form>
   );
@@ -35,20 +43,12 @@ function TestWrapper({ children, defaultValues = {} }: { children: React.ReactNo
 
 describe('PersonForm', () => {
   it('renders all person form fields correctly', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <PersonForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <PersonForm form={undefined as any} />
       </TestWrapper>
     );
-
-    // Check all form fields are present
     expect(screen.getByLabelText(/first name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/last name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/address/i)).toBeInTheDocument();
@@ -60,16 +60,10 @@ describe('PersonForm', () => {
   });
 
   it('has correct input types and placeholders', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <PersonForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <PersonForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -92,16 +86,10 @@ describe('PersonForm', () => {
 
   it('allows user input in all fields', async () => {
     const user = userEvent.setup();
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <PersonForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <PersonForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -138,16 +126,10 @@ describe('PersonForm', () => {
   });
 
   it('displays the correct card title', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <PersonForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <PersonForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -155,16 +137,10 @@ describe('PersonForm', () => {
   });
 
   it('has proper form field layout', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <PersonForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <PersonForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -181,16 +157,10 @@ describe('PersonForm', () => {
   });
 
   it('handles empty form submission gracefully', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <PersonForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <PersonForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -202,16 +172,10 @@ describe('PersonForm', () => {
   });
 
   it('maintains accessibility standards', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <PersonForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <PersonForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -223,16 +187,10 @@ describe('PersonForm', () => {
   });
 
   it('renders with default empty values', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper defaultValues={{ person: {} }}>
-        <PersonForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <PersonForm form={undefined as any} />
       </TestWrapper>
     );
 
