@@ -281,6 +281,10 @@ class AuthenticatedBackendApiClient extends ApiClient {
   employerRates!: {
     list: (params: { employerId: number | string }) => Promise<any[]>;
   };
+  tenantConfig!: {
+    get: (id: string) => Promise<any>;
+    update: (id: string, data: any) => Promise<any>;
+  };
 
   constructor(baseURL: string) {
     super(baseURL);
@@ -952,6 +956,11 @@ class AuthenticatedBackendApiClient extends ApiClient {
         }
         return this.get<any[]>(`/api/v1/employers/${employerId}/employer_rates`);
       },
+    };
+
+    this.tenantConfig = {
+      get: (id: string) => this.get<any>(`/api/v1/tenant_configs/${id}`),
+      update: (id: string, data: any) => this.put<any>(`/api/v1/tenant_configs/${id}`, data),
     };
   }
   

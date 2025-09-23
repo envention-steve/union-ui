@@ -54,7 +54,7 @@ const sidebarItems = [
   },
   {
     title: 'Admin Settings',
-    href: '/dashboard/admin-settings',
+    href: '/dashboard/admin/settings',
     icon: Settings,
   },
 ];
