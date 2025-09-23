@@ -10,17 +10,19 @@ jest.mock('sonner', () => ({
 }));
 
 // Mock the AnnuityPayoutForm component
+const mockAnnuityPayoutForm = jest.fn(({ onSubmit }: { onSubmit: (data: any) => void }) => (
+  <div data-testid="annuity-payout-form">
+    <button 
+      onClick={() => onSubmit({ distributionAmount: 1000 })}
+      data-testid="mock-submit-button"
+    >
+      Mock Submit
+    </button>
+  </div>
+));
+
 jest.mock('@/components/features/annuity/annuity-payout-form', () => ({
-  AnnuityPayoutForm: ({ onSubmit }: { onSubmit: (data: any) => void }) => (
-    <div data-testid="annuity-payout-form">
-      <button 
-        onClick={() => onSubmit({ distributionAmount: 1000 })}
-        data-testid="mock-submit-button"
-      >
-        Mock Submit
-      </button>
-    </div>
-  ),
+  AnnuityPayoutForm: mockAnnuityPayoutForm,
 }));
 
 describe('AnnuityPayoutPage', () => {
@@ -99,11 +101,7 @@ describe('AnnuityPayoutPage', () => {
     // Update the mock to return 0
     jest.clearAllMocks();
     
-    const { AnnuityPayoutForm } = require('@/components/features/annuity/annuity-payout-form');
-    AnnuityPayoutForm.mockImplementation(({ onSubmit }: { onSubmit: (data: any) => void }) => (
-      <div data-testid="annuity-payout-form">
-        <button 
-          onClick={() => onSubmit({ distributionAmount: 0 })}
+    mockAnnuityPayoutForm.mockImplementation(({ onSubmit }: { onSubmit: (data: any) => void }) => (
           data-testid="mock-submit-button-zero"
         >
           Mock Submit Zero
@@ -130,8 +128,7 @@ describe('AnnuityPayoutPage', () => {
     // Update the mock to return undefined distribution amount
     jest.clearAllMocks();
     
-    const { AnnuityPayoutForm } = require('@/components/features/annuity/annuity-payout-form');
-    AnnuityPayoutForm.mockImplementation(({ onSubmit }: { onSubmit: (data: any) => void }) => (
+    mockAnnuityPayoutForm.mockImplementation(({ onSubmit }: { onSubmit: (data: any) => void }) => (
       <div data-testid="annuity-payout-form">
         <button 
           onClick={() => onSubmit({})}
