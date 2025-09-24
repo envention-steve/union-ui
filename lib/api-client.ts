@@ -299,6 +299,10 @@ class AuthenticatedBackendApiClient extends ApiClient {
     update: (id: string, data: any) => Promise<any>;
     delete: (id: string) => Promise<{ message: string }>;
   };
+  fiscalYears!: {
+    getOpen: () => Promise<any[]>;
+    close: (id: number) => Promise<any>;
+  };
 
   constructor(baseURL: string) {
     super(baseURL);
@@ -1003,6 +1007,11 @@ class AuthenticatedBackendApiClient extends ApiClient {
       create: (data: any) => this.post<any>('/api/v1/annuity_interests', data),
       update: (id: string, data: any) => this.put<any>(`/api/v1/annuity_interests/${id}`, data),
       delete: (id: string) => this.delete<{ message: string }>(`/api/v1/annuity_interests/${id}`),
+    };
+
+    this.fiscalYears = {
+      getOpen: () => this.get<any[]>('/api/v1/fiscal_years/open'),
+      close: (id: number) => this.post<any>(`/api/v1/fiscal_years/${id}/end`),
     };
   }
   
