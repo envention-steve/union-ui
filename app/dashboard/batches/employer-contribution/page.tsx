@@ -330,25 +330,26 @@ export default function EmployerContributionPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={() => handleViewBatch(batch.id)}>
-                            <Eye className="mr-2 h-4 w-4" />
-                            View
-                          </Button>
+                          {/* Post/Unpost, Edit, Delete, and View as icon buttons */}
                           {batch.posted ? (
-                            <Button variant="outline" size="sm" onClick={() => handleUnpostBatch(batch.id)}>
-                              <RotateCcw className="mr-2 h-4 w-4" />
-                              Unpost
+                            <Button size="icon" variant="ghost" aria-label="Unpost" onClick={() => handleUnpostBatch(batch.id)}>
+                              <RotateCcw className="w-4 h-4" />
                             </Button>
                           ) : (
-                            <Button variant="outline" size="sm" onClick={() => handlePostBatch(batch.id)}>
-                              <RefreshCw className="mr-2 h-4 w-4" />
-                              Post
+                            <Button size="icon" variant="ghost" aria-label="Post" onClick={() => handlePostBatch(batch.id)}>
+                              <RefreshCw className="w-4 h-4" />
                             </Button>
                           )}
+                          <Button size="icon" variant="ghost" aria-label="View" onClick={() => handleViewBatch(batch.id)}>
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          {/* Edit action placeholder, implement if needed */}
+                          {/* <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => handleEditBatch(batch.id)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button> */}
                           {!batch.posted && (
-                            <Button variant="destructive" size="sm" onClick={() => handleDeleteBatch(batch.id)}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
+                            <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => handleDeleteBatch(batch.id)}>
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           )}
                         </div>

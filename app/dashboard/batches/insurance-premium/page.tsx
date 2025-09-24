@@ -3,7 +3,7 @@
 import { CreateInsuranceBatchDialog } from '@/components/features/batches/CreateInsuranceBatchDialog';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, ChevronLeft, ChevronRight, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Eye, Pencil, Plus, Trash2, RotateCcw, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -269,24 +269,22 @@ export default function InsurancePremiumBatchesPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={() => handleViewBatch(batch.id)}>
-                            <Eye className="mr-2 h-4 w-4" />
-                            Show
+                          <Button size="icon" variant="ghost" aria-label="Show" onClick={() => handleViewBatch(batch.id)}>
+                            <Eye className="w-4 h-4" />
                           </Button>
                           {!batch.posted && (
-                            <Button variant="outline" size="sm" onClick={() => handleEditBatch(batch.id)}>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit
+                            <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => handleEditBatch(batch.id)}>
+                              <Pencil className="w-4 h-4" />
                             </Button>
                           )}
                           <Button
-                            variant="destructive"
-                            size="sm"
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Delete"
                             onClick={() => handleDeleteBatch(batch.id)}
                             disabled={batch.posted}
                           >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Destroy
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>
