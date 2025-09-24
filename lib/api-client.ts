@@ -285,6 +285,20 @@ class AuthenticatedBackendApiClient extends ApiClient {
     get: (id: string) => Promise<any>;
     update: (id: string, data: any) => Promise<any>;
   };
+  annuityInterests!: {
+    list: (params?: { page?: number; limit?: number; search?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
+    get: (id: string) => Promise<any>;
+    create: (data: any) => Promise<any>;
+    update: (id: string, data: any) => Promise<any>;
+    delete: (id: string) => Promise<{ message: string }>;
+  };
+  annuityInterests!: {
+    list: (params?: { page?: number; limit?: number; search?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
+    get: (id: string) => Promise<any>;
+    create: (data: any) => Promise<any>;
+    update: (id: string, data: any) => Promise<any>;
+    delete: (id: string) => Promise<{ message: string }>;
+  };
 
   constructor(baseURL: string) {
     super(baseURL);
@@ -961,6 +975,34 @@ class AuthenticatedBackendApiClient extends ApiClient {
     this.tenantConfig = {
       get: (id: string) => this.get<any>(`/api/v1/tenant_configs/${id}`),
       update: (id: string, data: any) => this.put<any>(`/api/v1/tenant_configs/${id}`, data),
+    };
+
+    this.annuityInterests = {
+      list: async (params?: { page?: number; limit?: number; search?: string }) => {
+        const queryParams: Record<string, any> = {};
+        if (params?.page !== undefined && params?.limit !== undefined) {
+          queryParams.skip = (params.page - 1) * params.limit;
+          queryParams.limit = params.limit;
+        } else {
+          queryParams.limit = 25;
+        }
+        if (params?.search) {
+          queryParams.search = params.search;
+        }
+        const response = await this.get<any[]>('/api/v1/annuity_interests', queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+        return {
+          items: response,
+          total,
+          page: params?.page || 1,
+          limit: params?.limit || 25
+        };
+      },
+      get: (id: string) => this.get<any>(`/api/v1/annuity_interests/${id}`),
+      create: (data: any) => this.post<any>('/api/v1/annuity_interests', data),
+      update: (id: string, data: any) => this.put<any>(`/api/v1/annuity_interests/${id}`, data),
+      delete: (id: string) => this.delete<{ message: string }>(`/api/v1/annuity_interests/${id}`),
     };
   }
   

@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 // Import the page after setting up mocks
-import AnnuityPayoutPage from '@/app/dashboard/annuity/payout/page';
+import AnnuityPayoutPage from '@/app/dashboard/batches/annuity/payout/page';
 
 describe('AnnuityPayoutPage', () => {
   it('renders the page title correctly', () => {

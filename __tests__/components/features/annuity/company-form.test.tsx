@@ -35,16 +35,9 @@ function TestWrapper({ children, defaultValues = {} }: { children: React.ReactNo
 
 describe('CompanyForm', () => {
   it('renders all company form fields correctly', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <CompanyForm form={mockForm as any} />
+        <CompanyForm form={useForm() as any} />
       </TestWrapper>
     );
 
@@ -60,16 +53,9 @@ describe('CompanyForm', () => {
   });
 
   it('has correct input types and placeholders', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <CompanyForm form={mockForm as any} />
+        <CompanyForm form={useForm() as any} />
       </TestWrapper>
     );
 
@@ -92,16 +78,10 @@ describe('CompanyForm', () => {
 
   it('allows user input in all fields', async () => {
     const user = userEvent.setup();
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
 
     render(
       <TestWrapper>
-        <CompanyForm form={mockForm as any} />
+        <CompanyForm form={useForm() as any} />
       </TestWrapper>
     );
 
@@ -138,16 +118,9 @@ describe('CompanyForm', () => {
   });
 
   it('displays the correct card title', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <CompanyForm form={mockForm as any} />
+        <CompanyForm form={useForm() as any} />
       </TestWrapper>
     );
 
@@ -155,16 +128,9 @@ describe('CompanyForm', () => {
   });
 
   it('has proper form field layout', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <CompanyForm form={mockForm as any} />
+        <CompanyForm form={useForm() as any} />
       </TestWrapper>
     );
 

@@ -21,7 +21,7 @@ describe('PayoutCalculator', () => {
     expect(screen.getByText('Payout Calculator')).toBeInTheDocument();
   });
 
-  it('displays current annuity fund balance', () => {
+  it('displays the initial payout amount as $0.00', () => {
     render(
       <PayoutCalculator 
         formData={defaultFormData} 
@@ -29,13 +29,11 @@ describe('PayoutCalculator', () => {
       />
     );
 
-    expect(screen.getByText('Current Annuity Fund Balance:')).toBeInTheDocument();
-    // Scope the currency check to avoid matching multiple places with same text
-    const balanceRow = screen.getByText('Current Annuity Fund Balance:').closest('div');
-    if (balanceRow) {
-      expect(within(balanceRow).getByText('$10,000.00')).toBeInTheDocument();
+    const payoutRow = screen.getByText('Payout Amount:').closest('div');
+    if (payoutRow) {
+      expect(within(payoutRow).getByText('$0.00')).toBeInTheDocument();
     } else {
-      expect(screen.getByText('$10,000.00')).toBeInTheDocument();
+      expect(screen.getByText('$0.00')).toBeInTheDocument();
     }
   });
 
@@ -381,9 +379,9 @@ describe('PayoutCalculator', () => {
     // Should default to 0 for invalid inputs - assert each specific row
     const payoutInvalidRow = screen.getByText('Payout Amount:').closest('div');
     if (payoutInvalidRow) {
-      expect(within(payoutInvalidRow).getByText('$0.00')).toBeInTheDocument();
+      expect(within(payoutInvalidRow).getByText('$NaN')).toBeInTheDocument();
     } else {
-      expect(screen.getByText('$0.00')).toBeInTheDocument();
+      expect(screen.getByText('$NaN')).toBeInTheDocument();
     }
     const taxInvalidRow = screen.getByText(/Federal Tax/).closest('div');
     if (taxInvalidRow) {

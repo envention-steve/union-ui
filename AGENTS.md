@@ -29,3 +29,7 @@
 ## Environment & Configuration Notes
 - Duplicate `.env.example` to `.env.local` and update API endpoints (`NEXT_PUBLIC_API_URL`) before running locally.
 - Never commit secrets or local logs; add new config keys to `.env.example` and document usage in `docs/` when relevant.
+
+### When stuck
+- ask a question
+- propose a short plan
