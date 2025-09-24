@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { backendApiClient } from '@/lib/api-client';
@@ -43,31 +43,19 @@ export default function EmployersPage() {
       let transformedEmployers: Employer[] = [];
       let total = 0;
 
-      if (debouncedSearchTerm && backendApiClient.employers.autocomplete) {
-        const response = await backendApiClient.employers.autocomplete(debouncedSearchTerm);
-        // Defensive check to ensure response is an array
-        if (Array.isArray(response)) {
-          transformedEmployers = response.map((employer: any) => ({ ...employer }));
-          total = response.length;
-        } else {
-          console.error('Autocomplete response is not an array:', response);
-          transformedEmployers = [];
-          total = 0;
-        }
+      const response = await backendApiClient.employers.list({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearchTerm || undefined,
+      });
+      // Defensive check to ensure response.items is an array
+      if (response && Array.isArray(response.items)) {
+        transformedEmployers = response.items as Employer[];
+        total = response.total as number;
       } else {
-        const response = await backendApiClient.employers.list({
-          page: currentPage,
-          limit: itemsPerPage,
-        });
-        // Defensive check to ensure response.items is an array
-        if (response && Array.isArray(response.items)) {
-          transformedEmployers = response.items.map((employer: any) => ({ ...employer }));
-          total = response.total;
-        } else {
-          console.error('List response.items is not an array:', response);
-          transformedEmployers = [];
-          total = 0;
-        }
+        console.error('List response.items is not an array:', response);
+        transformedEmployers = [];
+        total = 0;
       }
       
       setEmployers(transformedEmployers);
@@ -84,6 +72,7 @@ export default function EmployersPage() {
   // Fetch employers on component mount and when filters change
   useEffect(() => {
     fetchEmployers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, itemsPerPage, debouncedSearchTerm]);
 
   // Calculate pagination

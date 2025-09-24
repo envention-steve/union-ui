@@ -42,31 +42,20 @@ export default function InsurancePlansPage() {
       let responseItems: InsurancePlan[] = [];
       let total = 0;
 
-      if (debouncedSearchTerm && backendApiClient.insurancePlans.autocomplete) {
-        const response = await backendApiClient.insurancePlans.autocomplete(debouncedSearchTerm);
-        if (Array.isArray(response)) {
-          responseItems = response;
-          total = response.length;
-        } else {
-          console.error('Autocomplete response is not an array:', response);
-        }
+      const response = await backendApiClient.insurancePlans.list({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearchTerm || undefined,
+      });
+      if (response && Array.isArray(response.items)) {
+        responseItems = response.items;
+        total = response.total;
       } else {
-        const response = await backendApiClient.insurancePlans.list({
-          page: currentPage,
-          limit: itemsPerPage,
-        });
-        if (response && Array.isArray(response.items)) {
-          responseItems = response.items;
-          total = response.total;
-        } else {
-          console.error('List response.items is not an array:', response);
-        }
+        console.error('List response.items is not an array:', response);
       }
 
       // Transform and sort API data by code
-      const transformedPlans: InsurancePlan[] = responseItems.map((plan: any) => ({
-        ...plan,
-      })).sort((a: InsurancePlan, b: InsurancePlan) => {
+      const transformedPlans: InsurancePlan[] = (responseItems as InsurancePlan[]).sort((a: InsurancePlan, b: InsurancePlan) => {
         const codeA = a.code || '';
         const codeB = b.code || '';
         return codeA.localeCompare(codeB);
@@ -86,6 +75,7 @@ export default function InsurancePlansPage() {
   // Fetch insurance plans on component mount and when filters change
   useEffect(() => {
     fetchInsurancePlans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, itemsPerPage, debouncedSearchTerm]);
 
   // Calculate pagination
@@ -94,10 +84,7 @@ export default function InsurancePlansPage() {
   
   const paginatedInsurancePlans = insurancePlans;
 
-  const getInitials = (name: string) => {
-    if (!name) return '';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  };
+  // getInitials helper not used currently in this view
 
   // Action handlers
   const handleViewPlan = (id: number) => {

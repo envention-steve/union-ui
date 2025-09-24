@@ -445,7 +445,7 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
                 )}
 
                 <Button type="submit" className="w-full">
-                  Calculate payout amount
+              Submit
                 </Button>
               </form>
             </Form>

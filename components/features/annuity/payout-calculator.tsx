@@ -4,32 +4,42 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
+type PayoutFormShape = {
+  annuityPayout?: string;
+  annuityFee?: boolean;
+  federalTaxRate?: string;
+  federalTaxAmount?: string;
+};
+
 interface PayoutCalculatorProps {
-  formData: any;
+  formData: PayoutFormShape;
   federalTaxType: 'rate' | 'amount';
   className?: string;
 }
 
 export function PayoutCalculator({ formData, federalTaxType, className }: PayoutCalculatorProps) {
   const calculations = useMemo(() => {
-    const payoutAmount = parseFloat(formData.annuityPayout || '0');
-    const annuityFee = formData.annuityFee ? 25.00 : 0;
-    
+    const parsedPayout = parseFloat(formData?.annuityPayout ?? '0');
+    const payoutAmount = Number.isFinite(parsedPayout) ? parsedPayout : 0;
+    const annuityFee = formData?.annuityFee ? 25.0 : 0;
+
     let federalTax = 0;
-    if (federalTaxType === 'rate' && formData.federalTaxRate) {
-      const rate = parseFloat(formData.federalTaxRate) / 100;
+    if (federalTaxType === 'rate' && formData?.federalTaxRate) {
+      const rateParsed = parseFloat(formData.federalTaxRate);
+      const rate = Number.isFinite(rateParsed) ? rateParsed / 100 : 0;
       federalTax = payoutAmount * rate;
-    } else if (federalTaxType === 'amount' && formData.federalTaxAmount) {
-      federalTax = parseFloat(formData.federalTaxAmount);
+    } else if (federalTaxType === 'amount' && formData?.federalTaxAmount) {
+      const amtParsed = parseFloat(formData.federalTaxAmount);
+      federalTax = Number.isFinite(amtParsed) ? amtParsed : 0;
     }
-    
+
     const distributionAmount = payoutAmount - annuityFee - federalTax;
 
     return {
       payoutAmount,
       annuityFee,
       federalTax,
-      distributionAmount,
+      distributionAmount: Number.isFinite(distributionAmount) ? distributionAmount : 0,
     };
   }, [formData, federalTaxType]);
 
