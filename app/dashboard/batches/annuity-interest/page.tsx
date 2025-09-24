@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Pencil, Trash2 } from 'lucide-react';
+import { RotateCcw, Pencil, Trash2, Plus } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 // Icons can be added later if needed
@@ -100,6 +100,7 @@ export default function AnnuityInterestPage() {
   const endIndex = Math.min(startIndex + itemsPerPage, totalInterests);
 
   return (
+
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -108,23 +109,16 @@ export default function AnnuityInterestPage() {
             Manage annuity interest batches.
           </p>
         </div>
+        <div className="flex gap-2">
+          <Button
+            className="bg-union-600 hover:bg-union-700 text-white"
+            onClick={() => alert('Add Interest dialog coming soon!')}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Interest
+          </Button>
+        </div>
       </div>
-
-      {error && (
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center text-red-600">
-              <p>{error}</p>
-              <Button
-                onClick={fetchAnnuityInterests}
-                className="mt-4 bg-union-600 hover:bg-union-700 text-white"
-              >
-                Try Again
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>
