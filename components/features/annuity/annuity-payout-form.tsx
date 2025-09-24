@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PersonForm } from './person-form';
 import { CompanyForm } from './company-form';
 import { PayoutCalculator } from './payout-calculator';
-import { cn } from '@/lib/utils';
+import { cn, toISOStringWithMidnight } from '@/lib/utils';
 
 const annuityPayoutSchema = z.object({
   accountNumber: z.string().min(1, 'Account number is required'),
@@ -141,8 +141,13 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
   const useMemberInfo = form.watch('useMemberInfo');
 
   const handleSubmit = (data: AnnuityPayoutFormData) => {
-    console.log('Annuity Payout Form Data:', data);
-    onSubmit?.(data);
+    const payload = {
+      ...data,
+      checkDate: toISOStringWithMidnight(data.checkDate),
+      postedDate: toISOStringWithMidnight(data.postedDate),
+    };
+    console.log('Annuity Payout Form Data:', payload);
+    onSubmit?.(payload);
   };
 
   const handleFederalTaxTypeChange = (type: 'rate' | 'amount') => {

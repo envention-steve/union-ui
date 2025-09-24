@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { toISOStringWithMidnight } from 'lib/utils';
 import { useRouter } from 'next/navigation';
 import { toast } from "sonner";
 
@@ -65,8 +66,8 @@ export function CreateBatchDialog({ isOpen, onOpenChange, contributionTypes }: C
   async function onSubmit(values: z.infer<typeof formSchema>) {
     const payload: AccountContributionBatchCreate = {
       ...values,
-      start_date: values.start_date.toISOString().split('T')[0],
-      end_date: values.end_date.toISOString().split('T')[0],
+      start_date: toISOStringWithMidnight(values.start_date),
+      end_date: toISOStringWithMidnight(values.end_date),
       received_date: new Date().toISOString(),
       posted: false,
       suspended: false,

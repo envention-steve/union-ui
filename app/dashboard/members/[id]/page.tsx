@@ -1,11 +1,13 @@
-'use client';
+import { toISOStringWithMidnight } from '@/lib/utils';
+"use client";
+
 
 import React, { useState, useEffect, useCallback, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +34,7 @@ import {
   Filter
 } from 'lucide-react';
 import { backendApiClient } from '@/lib/api-client';
-import { Member } from '@/types';
+
 import {
   LedgerEntry as PolymorphicLedgerEntry,
   getLedgerEntryTypeDisplayName,
@@ -615,30 +617,28 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       const memberData: MemberFormData = {
         ...response,
         // Transform addresses from API format to UI format
-        addresses: (response.addresses || []).map((addr: any) => ({
-          id: addr.id,
-          type: addr.label || 'HOME', // Map API 'label' to UI 'type'
-          street1: addr.street1,
-          street2: addr.street2 || '',
-          city: addr.city,
-          state: addr.state,
-          zip: addr.zip,
-        })),
-        
-        // Transform phone numbers from API format to UI format
-        phoneNumbers: (response.phone_numbers || []).map((phone: any) => ({
-          id: phone.id,
-          type: phone.label || 'MOBILE', // Map API 'label' to UI 'type'
-          number: phone.number,
-          extension: '', // Not currently supported in API
-        })),
-        
-        // Transform email addresses from API format to UI format
-        emailAddresses: (response.email_addresses || []).map((email: any) => ({
-          id: email.id,
-          type: email.label || 'PERSONAL', // Map API 'label' to UI 'type'
-          email: email.email_address,
-        })),
+    addresses: (response.addresses || []).map((addr: Address & { label?: string }) => ({
+      id: addr.id,
+      type: addr.label || 'HOME', // Map API 'label' to UI 'type'
+      street1: addr.street1,
+      street2: addr.street2 || '',
+      city: addr.city,
+      state: addr.state,
+      zip: addr.zip,
+    })),
+    // Transform phone numbers from API format to UI format
+    phoneNumbers: (response.phone_numbers || []).map((phone: PhoneNumber & { label?: string }) => ({
+      id: phone.id,
+      type: phone.label || 'MOBILE', // Map API 'label' to UI 'type'
+      number: phone.number,
+      extension: '', // Not currently supported in API
+    })),
+    // Transform email addresses from API format to UI format
+    emailAddresses: (response.email_addresses || []).map((email: EmailAddress & { label?: string; email_address?: string }) => ({
+      id: email.id,
+      type: email.label || 'PERSONAL', // Map API 'label' to UI 'type'
+      email: email.email_address || email.email,
+    })),
         
         distribution_class_coverages: response.distribution_class_coverages || [],
         member_status_coverages: response.member_status_coverages || [],
@@ -675,7 +675,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     fetchMember();
   }, [fetchMember]);
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: string, value: string | number | boolean | undefined) => {
     if (!isEditMode) return;
     
     setFormData(prev => ({
@@ -765,25 +765,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         return;
       }
       
-      // Convert dates to timezone-aware format to match backend expectations
-      const formatDateForAPI = (dateStr: string | undefined) => {
-        if (!dateStr) return null;
-        
-        // If it's already a full ISO string, return as-is
-        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(dateStr)) {
-          return dateStr;
-        }
-        
-        // If it's YYYY-MM-DD format, convert to timezone-aware ISO string
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-          // Create date at midnight UTC to match backend expectations
-          return new Date(dateStr + 'T00:00:00.000Z').toISOString();
-        }
-        
-        // Fallback: extract date part and convert to UTC
-        const datePart = dateStr.split('T')[0];
-        return new Date(datePart + 'T00:00:00.000Z').toISOString();
-      };
+  // Use centralized utility for date conversion
 
       // Process coverage changes to handle transaction issues
       // We need to handle coverages that are being ended and new ones being created separately
@@ -796,16 +778,14 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       
       const processedDistributionCoverages = distributionCoveragesChanged ? formData.distribution_class_coverages
         .map(coverage => {
-          // Skip coverages that don't have required fields set
           if (!coverage.start_date || !coverage.distribution_class_id) {
-            return null; // Will be filtered out below
+            return null;
           }
-          
           return {
             ...(coverage.id && coverage.id > 0 && { id: coverage.id }),
             distribution_class_id: coverage.distribution_class_id,
-            start_date: formatDateForAPI(coverage.start_date),
-            end_date: formatDateForAPI(coverage.end_date),
+            start_date: toISOStringWithMidnight(coverage.start_date),
+            end_date: toISOStringWithMidnight(coverage.end_date),
           };
         })
         .filter(coverage => coverage !== null) : [];
@@ -817,16 +797,14 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       
       const processedMemberStatusCoverages = memberStatusCoveragesChanged ? formData.member_status_coverages
         .map(coverage => {
-          // Skip coverages that don't have required fields set
           if (!coverage.start_date || !coverage.member_status_id) {
-            return null; // Will be filtered out below
+            return null;
           }
-          
           return {
             ...(coverage.id && coverage.id > 0 && { id: coverage.id }),
             member_status_id: coverage.member_status_id,
-            start_date: formatDateForAPI(coverage.start_date),
-            end_date: formatDateForAPI(coverage.end_date),
+            start_date: toISOStringWithMidnight(coverage.start_date),
+            end_date: toISOStringWithMidnight(coverage.end_date),
           };
         })
         .filter(coverage => coverage !== null) : [];
@@ -839,20 +817,17 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       
       const processedInsurancePlanCoverages = insurancePlanCoveragesChanged ? formData.insurance_plan_coverages
         .map(coverage => {
-          // Skip coverages that don't have required fields set
           if (!coverage.start_date || !coverage.insurance_plan_id) {
-            return null; // Will be filtered out below
+            return null;
           }
-          
           const processed = {
             ...(coverage.id && coverage.id > 0 && { id: coverage.id }),
             member_id: parseInt(resolvedParams.id),
             insurance_plan_id: coverage.insurance_plan_id,
             policy_number: coverage.policy_number || '',
-            start_date: formatDateForAPI(coverage.start_date),
-            end_date: formatDateForAPI(coverage.end_date),
+            start_date: toISOStringWithMidnight(coverage.start_date),
+            end_date: toISOStringWithMidnight(coverage.end_date),
           };
-          
           return processed;
         })
         .filter(coverage => coverage !== null) : [];
@@ -872,16 +847,14 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       
       const processedDependentCoverages = dependentCoveragesChanged ? formData.dependent_coverages
         .map(coverage => {
-          // Skip coverages that don't have a dependent with required fields
           if (!coverage.dependent || !coverage.dependent.first_name || !coverage.dependent.last_name) {
-            return null; // Will be filtered out below
+            return null;
           }
-          
           const processed = {
             ...(coverage.id && coverage.id > 0 && { id: coverage.id }),
             member_id: parseInt(resolvedParams.id),
-            start_date: formatDateForAPI(coverage.start_date),
-            end_date: formatDateForAPI(coverage.end_date),
+            start_date: toISOStringWithMidnight(coverage.start_date),
+            end_date: toISOStringWithMidnight(coverage.end_date),
             dependent: {
               ...(coverage.dependent.id && coverage.dependent.id > 0 && { id: coverage.dependent.id }),
               first_name: coverage.dependent.first_name,
@@ -891,14 +864,13 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
               phone: coverage.dependent.phone || null,
               email: coverage.dependent.email || null,
               gender: coverage.dependent.gender || null,
-              birth_date: coverage.dependent.birth_date || null,
+              birth_date: toISOStringWithMidnight(coverage.dependent.birth_date),
               dependent_type: coverage.dependent.dependent_type,
               include_cms: coverage.dependent.include_cms,
-              marriage_date: coverage.dependent.marriage_date || null,
+              marriage_date: toISOStringWithMidnight(coverage.dependent.marriage_date),
               marriage_certificate: coverage.dependent.marriage_certificate || false,
             }
           };
-          
           return processed;
         })
         .filter(coverage => coverage !== null) : [];
@@ -1233,7 +1205,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }));
   };
 
-  const updateDependent = (index: number, field: string, value: any) => {
+  const updateDependent = (index: number, field: string, value: string | number | boolean | undefined) => {
     setFormData(prev => ({
       ...prev,
       dependent_coverages: prev.dependent_coverages.map((depCoverage, i) => 
@@ -1250,7 +1222,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }) as MemberFormData);
   };
 
-  const updateDependentCoverage = (index: number, field: string, value: any) => {
+  const updateDependentCoverage = (index: number, field: string, value: string | number | boolean | undefined) => {
     setFormData(prev => ({
       ...prev,
       dependent_coverages: prev.dependent_coverages.map((depCoverage, i) => 
@@ -1292,22 +1264,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }));
   };
 
-  const updateEmployer = (index: number, field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      employer_coverages: prev.employer_coverages.map((empCoverage, i) => 
-        i === index 
-          ? {
-              ...empCoverage,
-              employer: {
-                ...empCoverage.employer,
-                [field]: value
-              }
-            }
-          : empCoverage
-      )
-    }));
-  };
+
 
   // Insurance Plan Coverage management functions
   const addInsurancePlanCoverage = () => {
@@ -1338,7 +1295,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }));
   };
 
-  const updateInsurancePlanCoverage = useCallback((index: number, field: string, value: any) => {
+  const updateInsurancePlanCoverage = useCallback((index: number, field: string, value: string | number | boolean | undefined) => {
     setFormData(prev => ({
       ...prev,
       insurance_plan_coverages: prev.insurance_plan_coverages.map((coverage, i) => 
@@ -1412,7 +1369,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     });
   };
 
-  const updateNote = (index: number, field: string, value: any) => {
+  const updateNote = (index: number, field: string, value: string | number | boolean | undefined) => {
     console.log('******* UPDATE NOTE DEBUG *******', {
       index,
       field,
@@ -1474,7 +1431,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }));
   };
 
-  const updateDistributionClassCoverage = (index: number, field: string, value: any) => {
+  const updateDistributionClassCoverage = (index: number, field: string, value: string | number | boolean | undefined) => {
     setFormData(prev => ({
       ...prev,
       distribution_class_coverages: prev.distribution_class_coverages.map((coverage, i) => 
@@ -1523,7 +1480,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }));
   };
 
-  const updateMemberStatusCoverage = (index: number, field: string, value: any) => {
+  const updateMemberStatusCoverage = (index: number, field: string, value: string | number | boolean | undefined) => {
     setFormData(prev => ({
       ...prev,
       member_status_coverages: prev.member_status_coverages.map((coverage, i) => 
@@ -1540,7 +1497,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       setLedgerLoading(true);
       setLedgerError(null);
       
-      const params: any = {
+  const params: Record<string, unknown> = {
         offset: (ledgerCurrentPage - 1) * ledgerItemsPerPage,
         limit: ledgerItemsPerPage,
       };
@@ -1867,41 +1824,42 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     coverages: DistributionClassCoverage[] | MemberStatusCoverage[] | LifeInsuranceCoverage[] | InsurancePlanCoverage[];
     type: 'distribution_class' | 'member_status' | 'life_insurance' | 'insurance_plan';
   }) => {
-    const getDisplayName = (coverage: any) => {
-      if (type === 'distribution_class' && coverage.distribution_class) {
+  const getDisplayName = (coverage: Coverage | DistributionClassCoverage | MemberStatusCoverage | LifeInsuranceCoverage | DependentCoverage | EmployerCoverage | InsurancePlanCoverage) => {
+      if (type === 'distribution_class' && 'distribution_class' in coverage && coverage.distribution_class) {
         return coverage.distribution_class.description;
       }
-      if (type === 'member_status' && coverage.member_status) {
+      if (type === 'member_status' && 'member_status' in coverage && coverage.member_status) {
         return coverage.member_status.name;
       }
-      if (type === 'insurance_plan' && coverage.insurance_plan) {
+      if (type === 'insurance_plan' && 'insurance_plan' in coverage && coverage.insurance_plan) {
         return coverage.insurance_plan.name;
       }
-      return coverage.status || 'N/A';
+  // fallback
+  return 'status' in coverage ? (coverage as { status?: string }).status || 'N/A' : 'N/A';
     };
 
-    const getSecondaryInfo = (coverage: any) => {
-      if (type === 'distribution_class' && coverage.distribution_class) {
+  const getSecondaryInfo = (coverage: Coverage | DistributionClassCoverage | MemberStatusCoverage | LifeInsuranceCoverage | DependentCoverage | EmployerCoverage | InsurancePlanCoverage) => {
+      if (type === 'distribution_class' && 'distribution_class' in coverage && coverage.distribution_class) {
         return `Class: ${coverage.distribution_class.name}`;
       }
-      if (type === 'member_status' && coverage.member_status) {
+      if (type === 'member_status' && 'member_status' in coverage && coverage.member_status) {
         return `Admin Fee: $${coverage.member_status.admin_fee}`;
       }
       if (type === 'insurance_plan') {
         const info = [];
-        if (coverage.insurance_plan) {
+        if ('insurance_plan' in coverage && coverage.insurance_plan) {
           info.push(`Type: ${coverage.insurance_plan.type}`);
           info.push(`Code: ${coverage.insurance_plan.code}`);
         }
-        if (coverage.policy_number) {
+        if ('policy_number' in coverage && coverage.policy_number) {
           info.push(`Policy: ${coverage.policy_number}`);
         }
         return info.length > 0 ? info.join(' | ') : null;
       }
       if (type === 'life_insurance') {
         const info = [];
-        if (coverage.beneficiary) info.push(`Beneficiary: ${coverage.beneficiary}`);
-        if (coverage.beneficiary_info_received !== undefined) {
+        if ('beneficiary' in coverage && coverage.beneficiary) info.push(`Beneficiary: ${coverage.beneficiary}`);
+        if ('beneficiary_info_received' in coverage && coverage.beneficiary_info_received !== undefined) {
           info.push(`Beneficiary Info: ${coverage.beneficiary_info_received ? 'Received' : 'Pending'}`);
         }
         return info.length > 0 ? info.join(' | ') : null;
@@ -2013,7 +1971,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                             onValueChange={(value) => {
                               const selectedClass = distributionClasses.find(dc => dc.id === parseInt(value));
                               updateDistributionClassCoverage(index, 'distribution_class_id', parseInt(value));
-                              updateDistributionClassCoverage(index, 'distribution_class', selectedClass);
+                              updateDistributionClassCoverage(index, 'distribution_class', selectedClass ? selectedClass.id : undefined);
                             }}
                           >
                             <SelectTrigger>
@@ -2033,7 +1991,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                             onValueChange={(value) => {
                               const selectedStatus = memberStatuses.find(ms => ms.id === parseInt(value));
                               updateMemberStatusCoverage(index, 'member_status_id', parseInt(value));
-                              updateMemberStatusCoverage(index, 'member_status', selectedStatus);
+                              updateMemberStatusCoverage(index, 'member_status', selectedStatus ? selectedStatus.id : undefined);
                             }}
                           >
                             <SelectTrigger>
@@ -2053,7 +2011,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                             onValueChange={(value) => {
                               const selectedPlan = insurancePlans.find(ip => ip.id === parseInt(value));
                               updateInsurancePlanCoverage(index, 'insurance_plan_id', parseInt(value));
-                              updateInsurancePlanCoverage(index, 'insurance_plan', selectedPlan);
+                              updateInsurancePlanCoverage(index, 'insurance_plan', selectedPlan ? selectedPlan.id : undefined);
                             }}
                           >
                             <SelectTrigger>
