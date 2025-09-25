@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   ArrowUp,
   CheckCircle,
-  Edit,
   RefreshCw,
   ShieldAlert,
   Trash2,
@@ -21,7 +20,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -381,17 +379,7 @@ export default function InsurancePremiumBatchDetailPage() {
     fetchBatchData();
   };
 
-  const handleEnterEditMode = () => {
-    if (!id) return;
-    const params = new URLSearchParams(searchParams?.toString());
-    if (isEditMode) {
-      params.delete('mode');
-    } else {
-      params.set('mode', 'edit');
-    }
-    const query = params.toString();
-    router.replace(`/dashboard/batches/insurance-premium/${id}${query ? `?${query}` : ''}`);
-  };
+  // Edit mode is no longer supported for insurance premium batches in the UI.
 
   const toggleActionSortOrder = () => {
     setActionSortOrder((order) => (order === 'asc' ? 'desc' : 'asc'));
@@ -460,12 +448,6 @@ export default function InsurancePremiumBatchDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {!batchInfo?.posted && (
-            <Button variant="outline" onClick={handleEnterEditMode} className="text-union-600 hover:text-union-700">
-              <Edit className="mr-2 h-4 w-4" />
-              {isEditMode ? 'Exit edit' : 'Edit'}
-            </Button>
-          )}
           {batchInfo?.posted ? (
             <Button
               variant="outline"

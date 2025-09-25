@@ -3,7 +3,7 @@
 import { CreateInsuranceBatchDialog } from '@/components/features/batches/CreateInsuranceBatchDialog';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, ChevronLeft, ChevronRight, Eye, Pencil, Plus, Trash2, RotateCcw, RefreshCw } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Eye, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -86,9 +86,7 @@ export default function InsurancePremiumBatchesPage() {
     router.push(`/dashboard/batches/insurance-premium/${id}`);
   };
 
-  const handleEditBatch = (id: number) => {
-    router.push(`/dashboard/batches/insurance-premium/${id}?mode=edit`);
-  };
+  // Editing insurance premium batches isn't supported in the UI; only view/post/delete actions are available.
 
   const handleDeleteBatch = async (id: number) => {
     if (!confirm('Delete this insurance premium batch? This action cannot be undone.')) return;
@@ -272,20 +270,17 @@ export default function InsurancePremiumBatchesPage() {
                           <Button size="icon" variant="ghost" aria-label="Show" onClick={() => handleViewBatch(batch.id)}>
                             <Eye className="w-4 h-4" />
                           </Button>
+                          {/* Edit action removed - only Post/Delete/View are supported for insurance premium batches */}
                           {!batch.posted && (
-                            <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => handleEditBatch(batch.id)}>
-                              <Pencil className="w-4 h-4" />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Delete"
+                              onClick={() => handleDeleteBatch(batch.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           )}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            aria-label="Delete"
-                            onClick={() => handleDeleteBatch(batch.id)}
-                            disabled={batch.posted}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
