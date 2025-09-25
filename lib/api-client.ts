@@ -300,8 +300,10 @@ class AuthenticatedBackendApiClient extends ApiClient {
     delete: (id: string) => Promise<{ message: string }>;
   };
   fiscalYears!: {
+    list: () => Promise<any[]>;
     getOpen: () => Promise<any[]>;
     close: (id: number) => Promise<any>;
+    withoutAnnuityInterest: () => Promise<any[]>;
   };
 
   constructor(baseURL: string) {
@@ -1010,8 +1012,10 @@ class AuthenticatedBackendApiClient extends ApiClient {
     };
 
     this.fiscalYears = {
+      list: () => this.get<any[]>('/api/v1/fiscal_years'),
       getOpen: () => this.get<any[]>('/api/v1/fiscal_years/open'),
       close: (id: number) => this.post<any>(`/api/v1/fiscal_years/${id}/end`),
+      withoutAnnuityInterest: () => this.get<any[]>('/api/v1/fiscal_years/without-annuity-interest'),
     };
   }
   

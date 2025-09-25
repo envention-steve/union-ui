@@ -1,5 +1,5 @@
-import { toISOStringWithMidnight } from '@/lib/utils';
 "use client";
+import { toISOStringWithMidnight } from '@/lib/utils';
 
 
 import React, { useState, useEffect, useCallback, use } from 'react';
@@ -200,7 +200,18 @@ const LedgerEntryExpandedDetails: React.FC<{ entry: PolymorphicLedgerEntry }> = 
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="font-medium">Year End Balance:</span> {entry.year_end_balance ? `$${entry.year_end_balance.toFixed(2)}` : 'N/A'}
+            <span className="font-medium">Year End Balance:</span>{' '}
+            {(() => {
+              const val = entry.year_end_balance;
+              // If null/undefined, show N/A
+              if (val === null || val === undefined) return 'N/A';
+              // Coerce numeric strings to numbers
+              const num = typeof val === 'number' ? val : Number(val);
+              if (Number.isFinite(num)) {
+                return `$${num.toFixed(2)}`;
+              }
+              return 'N/A';
+            })()}
           </div>
           <div>
             <span className="font-medium">Annuity Interest ID:</span> {entry.annuity_interest_id || 'N/A'}

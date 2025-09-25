@@ -5,10 +5,9 @@ import { Button } from '@/components/ui/button';
 import { RotateCcw, Pencil, Trash2, Plus } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-// Icons can be added later if needed
 import { backendApiClient } from '@/lib/api-client';
 import { useRouter } from 'next/navigation';
-
+import { AddInterestDialog } from '@/components/features/annuity/add-interest-dialog';
 
 interface FiscalYear {
   id: number;
@@ -25,7 +24,6 @@ interface AnnuityInterest {
   posted?: boolean;
 }
 
-
 export default function AnnuityInterestPage() {
   useRouter();
   const [annuityInterests, setAnnuityInterests] = useState<AnnuityInterest[]>([]);
@@ -34,6 +32,7 @@ export default function AnnuityInterestPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalInterests, setTotalInterests] = useState(0);
+  const [isAddInterestDialogOpen, setIsAddInterestDialogOpen] = useState(false);
 
   const fetchAnnuityInterests = async () => {
     try {
@@ -45,7 +44,6 @@ export default function AnnuityInterestPage() {
       });
       if (response && Array.isArray(response.items)) {
         setAnnuityInterests(response.items);
-        // Use response.total if available, otherwise fallback to items.length
         let total = 0;
         if (typeof response.total === 'number') {
           total = response.total;
@@ -73,14 +71,11 @@ export default function AnnuityInterestPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, itemsPerPage]);
 
-  // Post/Unpost logic placeholder
   const handlePostToggle = (id: number) => {
-    // TODO: Implement post/unpost functionality
     console.log('Post/Unpost:', id);
   };
 
   const handleEdit = (id: number) => {
-    // TODO: Implement edit functionality
     console.log('Edit:', id);
   };
 
@@ -100,25 +95,33 @@ export default function AnnuityInterestPage() {
   const endIndex = Math.min(startIndex + itemsPerPage, totalInterests);
 
   return (
-
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-union-900">Annuity Interest Batches</h1>
-          <p className="text-muted-foreground">
-            Manage annuity interest batches.
-          </p>
+    <>
+      <AddInterestDialog
+        open={isAddInterestDialogOpen}
+        onOpenChange={setIsAddInterestDialogOpen}
+        onInterestAdded={() => {
+          fetchAnnuityInterests();
+          setCurrentPage(1); // Reset to first page to see the new entry
+        }}
+      />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-union-900">Annuity Interest Batches</h1>
+            <p className="text-muted-foreground">
+              Manage annuity interest batches.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              className="bg-union-600 hover:bg-union-700 text-white"
+              onClick={() => setIsAddInterestDialogOpen(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Interest
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            className="bg-union-600 hover:bg-union-700 text-white"
-            onClick={() => alert('Add Interest dialog coming soon!')}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Interest
-          </Button>
-        </div>
-      </div>
 
       <Card>
         <CardHeader>
@@ -256,5 +259,6 @@ export default function AnnuityInterestPage() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }
