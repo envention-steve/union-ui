@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { DashboardHeader } from '@/components/layout/dashboard-header';
 import { DashboardSidebar } from '@/components/layout/dashboard-sidebar';
-import { ScrollArea } from '@/components/ui/scroll-area';
+// using native scrolling for the main content area so the page has a single scrollbar
 
 export default function DashboardLayout({
   children,
@@ -81,14 +81,17 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen">
+    // keep the overall page from creating a second scrollbar — the <main>
+    // area should be the single scrolling region. `overflow-hidden` on
+    // the outer container prevents the body from also scrolling.
+    <div className="flex h-screen overflow-hidden">
       <DashboardSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto">
-          <ScrollArea className="h-full p-6">
+          <div className="h-full p-6">
             {children}
-          </ScrollArea>
+          </div>
         </main>
       </div>
     </div>
