@@ -385,6 +385,21 @@ export default function InsurancePremiumBatchDetailPage() {
     setActionSortOrder((order) => (order === 'asc' ? 'desc' : 'asc'));
   };
 
+  const handleDeleteInsurancePremium = async (rowId: number | null | undefined) => {
+    if (!rowId) return;
+    if (!confirm('Are you sure you want to delete this insurance premium? This action cannot be undone.')) return;
+
+    try {
+      // Call raw delete endpoint for individual insurance_premiums
+      await backendApiClient.delete(`/api/v1/insurance_premiums/${rowId}`);
+      // Remove the row locally for immediate UI feedback
+      setMemberRows((current) => current.filter((r) => r.id !== rowId));
+    } catch (deleteError) {
+      console.error('Failed to delete insurance premium', deleteError);
+      setError('Failed to delete insurance premium. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -568,7 +583,22 @@ export default function InsurancePremiumBatchDetailPage() {
                           {row.memberUniqueId || '—'}
                         </TableCell>
                         <TableCell>{row.status}</TableCell>
-                        <TableCell>{row.action}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-between">
+                            <span>{row.action}</span>
+                            {/* Delete individual insurance premium */}
+                            {row.id ? (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteInsurancePremium(row.id!)}
+                                aria-label="Delete"
+                                className="ml-2 text-muted-foreground hover:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            ) : null}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right font-mono text-sm">{formatCurrency(row.totalDue)}</TableCell>
                         <TableCell className="text-right font-mono text-sm">{formatCurrency(row.healthBalance)}</TableCell>
                         <TableCell className="text-right font-mono text-sm">{formatCurrency(row.newBalance)}</TableCell>
