@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 interface AuthEndpoints {
   login: (credentials: { email: string; password: string }) => Promise<{ success: boolean; user: any; message: string }>;
   logout: () => Promise<{ success: boolean; message: string }>;
@@ -35,6 +37,8 @@ interface BusinessEndpoints {
   // Autocomplete method
   autocomplete?: (query: string) => Promise<any[]>;
   accountAutocomplete?: (query: string) => Promise<any[]>;
+  // Employer-specific autocomplete that requires an employer id and optional date range
+  employerAutocomplete?: (payload: { search_term: string; employer_id: number | string; start_date?: string; end_date?: string }) => Promise<any[]>;
   // Employer-specific methods
   getRates?: (id: string) => Promise<any[]>;
   createRate?: (id: string, data: any) => Promise<any>;
@@ -115,7 +119,8 @@ class ApiClient {
           return this.request<T>(endpoint, options, retryCount + 1);
         }
       } catch (error) {
-        // Token refresh failed, let the original 401 error propagate
+        // Token refresh failed, log and let the original 401 error propagate
+        console.warn('Token refresh failed in ApiClient.request:', error);
       }
     }
 
@@ -307,6 +312,7 @@ class AuthenticatedBackendApiClient extends ApiClient {
     update: (id: string, data: any) => Promise<any>;
     delete: (id: string) => Promise<{ message: string }>;
     unpost: (id: string) => Promise<any>;
+    post: (id: string) => Promise<any>;
   };
   fiscalYears!: {
     list: () => Promise<any[]>;
@@ -878,7 +884,7 @@ class AuthenticatedBackendApiClient extends ApiClient {
       },
       get: (id: string) => this.get<any>(`/api/v1/account_contribution_batches/${id}`),
       getDetails: (id: string) => this.get<any>(`/api/v1/account_contribution_batches/${id}/details`),
-      create: (data: AccountContributionBatchCreate) => this.post<any>('/api/v1/account_contribution_batches', data),
+  create: (data: any) => this.post<any>('/api/v1/account_contribution_batches', data),
       update: (id: string, data: any) => this.put<any>(`/api/v1/account_contribution_batches/${id}`, data),
       delete: (id: string) => this.delete<{ message: string }>(`/api/v1/account_contribution_batches/${id}`),
       post: (id: string) => this.post<any>(`/api/v1/account_contribution_batches/${id}/post`),
@@ -1063,6 +1069,8 @@ class AuthenticatedBackendApiClient extends ApiClient {
       delete: (id: string) => this.delete<{ message: string }>(`/api/v1/annuity_interests/${id}`),
       // Unpost an annuity interest (POST to /annuity_interests/{id}/unpost)
       unpost: (id: string) => this.post<any>(`/api/v1/annuity_interests/${id}/unpost`),
+      // Post an annuity interest (POST to /annuity_interests/{id}/post)
+      post: (id: string) => this.post<any>(`/api/v1/annuity_interests/${id}/post`),
     };
 
     this.fiscalYears = {

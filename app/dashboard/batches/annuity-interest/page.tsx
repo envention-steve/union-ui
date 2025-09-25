@@ -33,6 +33,11 @@ export default function AnnuityInterestPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalInterests, setTotalInterests] = useState(0);
   const [isAddInterestDialogOpen, setIsAddInterestDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<'create' | 'edit' | 'post'>('create');
+  const [dialogInitialFiscalYearId, setDialogInitialFiscalYearId] = useState<string | undefined>(undefined);
+  const [dialogInitialRate, setDialogInitialRate] = useState<string | undefined>(undefined);
+  const [dialogInitialFiscalYearLabel, setDialogInitialFiscalYearLabel] = useState<string | undefined>(undefined);
+  const [dialogInterestId, setDialogInterestId] = useState<number | string | undefined>(undefined);
 
   const fetchAnnuityInterests = async () => {
     try {
@@ -86,7 +91,16 @@ export default function AnnuityInterestPage() {
   };
 
   const handleEdit = (id: number) => {
-    console.log('Edit:', id);
+    const interest = annuityInterests.find(i => i.id === id);
+    if (!interest) return;
+    setDialogInitialFiscalYearId(interest.fiscal_year_id ? String(interest.fiscal_year_id) : undefined);
+    setDialogInitialFiscalYearLabel(interest.fiscal_year && interest.fiscal_year.start_date && interest.fiscal_year.end_date
+      ? `${new Date(interest.fiscal_year.start_date).toLocaleDateString()} through ${new Date(interest.fiscal_year.end_date).toLocaleDateString()}`
+      : undefined);
+    setDialogInitialRate(String(interest.rate));
+    setDialogInterestId(id);
+    setDialogMode('edit');
+    setIsAddInterestDialogOpen(true);
   };
 
   const handleDestroy = async (id: number) => {
@@ -108,13 +122,31 @@ export default function AnnuityInterestPage() {
     <>
       <AddInterestDialog
         open={isAddInterestDialogOpen}
-        onOpenChange={setIsAddInterestDialogOpen}
+        onOpenChange={(open) => {
+          setIsAddInterestDialogOpen(open);
+          if (!open) {
+            // reset dialog-specific state
+            setDialogMode('create');
+            setDialogInitialFiscalYearId(undefined);
+            setDialogInitialRate(undefined);
+            setDialogInitialFiscalYearLabel(undefined);
+            setDialogInterestId(undefined);
+          }
+        }}
+        initialFiscalYearId={dialogInitialFiscalYearId}
+        initialFiscalYearLabel={dialogInitialFiscalYearLabel}
+        initialRate={dialogInitialRate}
+        interestId={dialogInterestId}
+        mode={dialogMode}
         onInterestAdded={() => {
           fetchAnnuityInterests();
           setCurrentPage(1); // Reset to first page to see the new entry
         }}
       />
       <div className="space-y-6">
+        {error && (
+          <div className="rounded-md bg-red-50 p-3 text-red-700">{error}</div>
+        )}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-union-900">Annuity Interest Batches</h1>
@@ -125,7 +157,10 @@ export default function AnnuityInterestPage() {
           <div className="flex gap-2">
             <Button
               className="bg-union-600 hover:bg-union-700 text-white"
-              onClick={() => setIsAddInterestDialogOpen(true)}
+              onClick={() => {
+                setDialogMode('create');
+                setIsAddInterestDialogOpen(true);
+              }}
             >
               <Plus className="mr-2 h-4 w-4" />
               Add Interest
