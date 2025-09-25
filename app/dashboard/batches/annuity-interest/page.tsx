@@ -72,7 +72,17 @@ export default function AnnuityInterestPage() {
   }, [currentPage, itemsPerPage]);
 
   const handlePostToggle = (id: number) => {
-    console.log('Post/Unpost:', id);
+    // Call backend unpost endpoint and refresh list
+    (async () => {
+      try {
+        await backendApiClient.annuityInterests.unpost(String(id));
+        // Refresh list after successful unpost
+        fetchAnnuityInterests();
+      } catch (err) {
+        console.error('Failed to unpost annuity interest', err);
+        setError('Failed to unpost annuity interest.');
+      }
+    })();
   };
 
   const handleEdit = (id: number) => {

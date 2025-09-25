@@ -306,13 +306,7 @@ class AuthenticatedBackendApiClient extends ApiClient {
     create: (data: any) => Promise<any>;
     update: (id: string, data: any) => Promise<any>;
     delete: (id: string) => Promise<{ message: string }>;
-  };
-  annuityInterests!: {
-    list: (params?: { page?: number; limit?: number; search?: string }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
-    get: (id: string) => Promise<any>;
-    create: (data: any) => Promise<any>;
-    update: (id: string, data: any) => Promise<any>;
-    delete: (id: string) => Promise<{ message: string }>;
+    unpost: (id: string) => Promise<any>;
   };
   fiscalYears!: {
     list: () => Promise<any[]>;
@@ -1067,6 +1061,8 @@ class AuthenticatedBackendApiClient extends ApiClient {
       create: (data: any) => this.post<any>('/api/v1/annuity_interests', data),
       update: (id: string, data: any) => this.put<any>(`/api/v1/annuity_interests/${id}`, data),
       delete: (id: string) => this.delete<{ message: string }>(`/api/v1/annuity_interests/${id}`),
+      // Unpost an annuity interest (POST to /annuity_interests/{id}/unpost)
+      unpost: (id: string) => this.post<any>(`/api/v1/annuity_interests/${id}/unpost`),
     };
 
     this.fiscalYears = {
