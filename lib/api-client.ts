@@ -278,6 +278,21 @@ class AuthenticatedBackendApiClient extends ApiClient {
     post: (id: string) => Promise<any>;
     unpost: (id: string) => Promise<any>;
   };
+  lifeInsuranceBatches!: {
+    list: (params?: {
+      page?: number;
+      limit?: number;
+      startDate?: string;
+      endDate?: string;
+    }) => Promise<{ items: any[]; total: number; page: number; limit: number }>;
+    get: (id: string) => Promise<any>;
+    getDetails: (id: string) => Promise<any>;
+    create: (data: any) => Promise<any>;
+    update: (id: string, data: any) => Promise<any>;
+    delete: (id: string) => Promise<{ message: string }>;
+    post: (id: string) => Promise<any>;
+    unpost: (id: string) => Promise<any>;
+  };
   employerRates!: {
     list: (params: { employerId: number | string }) => Promise<any[]>;
   };
@@ -967,6 +982,49 @@ class AuthenticatedBackendApiClient extends ApiClient {
       delete: (id: string) => this.delete<{ message: string }>(`/api/v1/insurance_premium_batches/${id}`),
       post: (id: string) => this.post<any>(`/api/v1/insurance_premium_batches/${id}/post`),
       unpost: (id: string) => this.post<any>(`/api/v1/insurance_premium_batches/${id}/unpost`),
+    };
+
+    this.lifeInsuranceBatches = {
+      list: async (params?: {
+        page?: number;
+        limit?: number;
+        startDate?: string;
+        endDate?: string;
+      }) => {
+        const queryParams: Record<string, any> = {};
+        if (params?.page !== undefined && params?.limit !== undefined) {
+          queryParams.skip = (params.page - 1) * params.limit;
+          queryParams.limit = params.limit;
+        } else {
+          queryParams.limit = 25;
+        }
+
+        if (params?.startDate) {
+          queryParams.start_date = params.startDate;
+        }
+
+        if (params?.endDate) {
+          queryParams.end_date = params.endDate;
+        }
+
+        const response = await this.get<any[]>(`/api/v1/life_insurance_batches`, queryParams);
+        const headers = this.getLastResponseHeaders() as Headers;
+        const total = headers?.get('X-Total-Count') ? parseInt(headers.get('X-Total-Count')!) : response.length;
+
+        return {
+          items: response,
+          total,
+          page: params?.page || 1,
+          limit: params?.limit || 25,
+        };
+      },
+      get: (id: string) => this.get<any>(`/api/v1/life_insurance_batches/${id}`),
+      getDetails: (id: string) => this.get<any>(`/api/v1/life_insurance_batches/${id}/details`),
+      create: (data: any) => this.post<any>('/api/v1/life_insurance_batches', data),
+      update: (id: string, data: any) => this.put<any>(`/api/v1/life_insurance_batches/${id}`, data),
+      delete: (id: string) => this.delete<{ message: string }>(`/api/v1/life_insurance_batches/${id}`),
+      post: (id: string) => this.post<any>(`/api/v1/life_insurance_batches/${id}/post`),
+      unpost: (id: string) => this.post<any>(`/api/v1/life_insurance_batches/${id}/unpost`),
     };
 
     this.employerRates = {
