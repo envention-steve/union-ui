@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Calendar, ChevronLeft, ChevronRight, Eye, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+// Badge column removed; no badge import needed
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -16,8 +16,8 @@ interface LifeInsuranceBatchListItem {
   id: number;
   start_date?: string;
   end_date?: string;
-  posted?: boolean;
   suspended?: boolean;
+  posted?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -123,29 +123,7 @@ export default function LifeInsuranceBatchesPage() {
     return 'No date range provided';
   };
 
-  const deriveStatusLabel = (batch: LifeInsuranceBatchListItem) => {
-    if (batch.suspended) {
-      return 'Suspended';
-    }
-
-    if (batch.posted) {
-      return 'Posted';
-    }
-
-    return 'Not suspended or posted';
-  };
-
-  const statusBadgeVariant = (batch: LifeInsuranceBatchListItem) => {
-    if (batch.suspended) {
-      return 'bg-red-100 text-red-800';
-    }
-
-    if (batch.posted) {
-      return 'bg-green-100 text-green-800';
-    }
-
-    return 'bg-gray-100 text-gray-800';
-  };
+  // Status column removed — batch status label and badge are no longer rendered here.
 
   const filterApplied = Boolean(startDate || endDate);
 
@@ -237,20 +215,19 @@ export default function LifeInsuranceBatchesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Time Range</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
                       Loading batches...
                     </TableCell>
                   </TableRow>
                 ) : batches.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
                       {filterApplied
                         ? 'No life insurance batches found for the selected filters.'
                         : 'No life insurance batches found.'}
@@ -260,9 +237,6 @@ export default function LifeInsuranceBatchesPage() {
                   batches.map((batch) => (
                     <TableRow key={batch.id}>
                       <TableCell className="font-medium">{formatDateRange(batch.start_date, batch.end_date)}</TableCell>
-                      <TableCell>
-                        <Badge className={statusBadgeVariant(batch)}>{deriveStatusLabel(batch)}</Badge>
-                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button size="icon" variant="ghost" aria-label="Show" onClick={() => handleViewBatch(batch.id)}>
