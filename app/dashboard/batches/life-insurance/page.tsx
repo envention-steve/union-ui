@@ -123,7 +123,7 @@ export default function LifeInsuranceBatchesPage() {
     return 'No date range provided';
   };
 
-  // Status column removed — batch status label and badge are no longer rendered here.
+  // Status column removed — batch status label and b adge are no longer rendered here.
 
   const filterApplied = Boolean(startDate || endDate);
 

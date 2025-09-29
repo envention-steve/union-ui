@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -13,9 +15,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FormControl, FormItem, FormLabel } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { backendApiClient } from '@/lib/api-client';
+
+const formSchema = z.object({
+  startDate: z.string().min(1, 'Start date is required'),
+  endDate: z.string().min(1, 'End date is required'),
+}).refine((data) => new Date(data.startDate) <= new Date(data.endDate), {
+  message: 'Start date must be on or before end date',
+  path: ['endDate'],
+});
+
+type FormData = z.infer<typeof formSchema>;
 
 interface CreateLifeInsuranceBatchDialogProps {
   isOpen: boolean;
@@ -24,43 +36,28 @@ interface CreateLifeInsuranceBatchDialogProps {
 
 export function CreateLifeInsuranceBatchDialog({ isOpen, onOpenChange }: CreateLifeInsuranceBatchDialogProps) {
   const router = useRouter();
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      startDate: '',
+      endDate: '',
+    },
+  });
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!startDate || !endDate) {
-      toast.error('Please provide both start and end dates');
-      return;
-    }
-    // Validate that startDate is on or before endDate
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      toast.error('Please provide valid dates');
-      return;
-    }
+  const { handleSubmit, formState: { isSubmitting }, reset } = form;
 
-    if (start > end) {
-      toast.error('Start date must be on or before end date');
-      return;
-    }
-
+  async function onSubmit(values: FormData) {
     const payload = {
-      start_date: startDate,
-      end_date: endDate,
+      start_date: values.startDate,
+      end_date: values.endDate,
       posted: false,
       suspended: false,
     };
 
-    setSubmitting(true);
-
     try {
       const newBatch = await backendApiClient.lifeInsuranceBatches.create(payload as unknown as Record<string, unknown>);
       onOpenChange(false);
-      setStartDate('');
-      setEndDate('');
+      reset();
       if (newBatch && newBatch.id) {
         router.push(`/dashboard/batches/life-insurance/${newBatch.id}`);
       }
@@ -68,13 +65,16 @@ export function CreateLifeInsuranceBatchDialog({ isOpen, onOpenChange }: CreateL
     } catch (errUnknown) {
       const err = errUnknown as { message?: string } | undefined;
       toast.error(`Failed to create batch: ${err?.message ?? String(errUnknown)}`);
-    } finally {
-      setSubmitting(false);
     }
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        reset();
+      }
+      onOpenChange(open);
+    }}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Create Life Insurance Batch</DialogTitle>
@@ -82,26 +82,40 @@ export function CreateLifeInsuranceBatchDialog({ isOpen, onOpenChange }: CreateL
             Select the start and end date for the new batch.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <FormItem>
-            <FormLabel>Start Date</FormLabel>
-            <FormControl>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            </FormControl>
-          </FormItem>
-
-          <FormItem>
-            <FormLabel>End Date</FormLabel>
-            <FormControl>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-            </FormControl>
-          </FormItem>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-            <Button type="submit" disabled={submitting}>{submitting ? 'Creating...' : 'Create'}</Button>
-          </DialogFooter>
-        </form>
+        <Form {...form}>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
+            <FormField
+              control={form.control}
+              name="startDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Start Date</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="endDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>End Date</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Creating...' : 'Create'}</Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
