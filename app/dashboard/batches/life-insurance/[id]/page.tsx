@@ -1,4 +1,4 @@
- 'use client';
+"use client";
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { backendApiClient } from '@/lib/api-client';
+import { formatStatus } from '@/lib/formatters';
 import {
   LifeInsuranceBatchSummary,
   LifeInsuranceRawMember,
@@ -43,6 +44,7 @@ export default function LifeInsuranceBatchDetailPage() {
   const id = params?.id as string;
 
   const [batchInfo, setBatchInfo] = useState<LifeInsuranceBatchSummary | null>(null);
+  const [batchStatus, setBatchStatus] = useState<string | null>(null);
   const [memberRows, setMemberRows] = useState<LifeInsuranceMemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +56,30 @@ export default function LifeInsuranceBatchDetailPage() {
       setLoading(true);
       setError(null);
 
-  const detailsResponse = await backendApiClient.lifeInsuranceBatches.get(id);
+      const detailsResponse = await backendApiClient.lifeInsuranceBatches.get(id);
+
+      // Attempt to extract a status string from common response shapes so the UI
+      // can show the batch status (e.g. RUNNING, COMPLETED, FAILED).
+      const maybeStatus = ((): string | null => {
+        if (!detailsResponse) return null;
+        const resp = detailsResponse as Record<string, unknown>;
+        const candidates = [
+          resp['status'],
+          resp['state'],
+          resp['batch_status'],
+          resp['status_code'],
+          (resp['batch'] as Record<string, unknown>)?.['status'],
+          (resp['batch'] as Record<string, unknown>)?.['state'],
+          (resp['summary'] as Record<string, unknown>)?.['status'],
+          (resp['summary'] as Record<string, unknown>)?.['state'],
+        ];
+        for (const c of candidates) {
+          if (typeof c === 'string' && c.trim()) return c.trim();
+        }
+        return null;
+      })();
+
+      setBatchStatus(maybeStatus ?? null);
 
       const normalizedBatch = extractBatchMetadata(detailsResponse) ?? null;
 
@@ -191,13 +216,6 @@ export default function LifeInsuranceBatchDetailPage() {
     ? `${formatDate(batchInfo.start_date)} through ${formatDate(batchInfo.end_date)}`
     : 'Date range unavailable';
 
-  function sanitizeStatus(status: string | null | undefined) {
-    if (!status) return '—';
-    // Replace underscores with spaces, downcase, then title case each word
-    const normalized = String(status).replace(/_/g, ' ').toLowerCase();
-    return normalized.replace(/\b\w/g, (ch) => ch.toUpperCase());
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -206,7 +224,24 @@ export default function LifeInsuranceBatchDetailPage() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
-          <h1 className="text-3xl font-bold text-union-900">Life Insurance Batch</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-union-900">Life Insurance Batch</h1>
+            {batchStatus ? (
+              <span
+                className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
+                  batchStatus.toLowerCase().includes('run') || batchStatus.toLowerCase().includes('progress')
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : batchStatus.toLowerCase().includes('fail') || batchStatus.toLowerCase().includes('error')
+                    ? 'bg-red-100 text-red-800'
+                    : 'bg-green-100 text-green-800'
+                }`}
+              >
+                {formatStatus(batchStatus)}
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium bg-gray-100 text-gray-700">Unknown</span>
+            )}
+          </div>
           <p className="text-muted-foreground">{dateRangeLabel}</p>
         </div>
         <div className="flex gap-2">
@@ -243,34 +278,7 @@ export default function LifeInsuranceBatchDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Report date range</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">{dateRangeLabel}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Life insurance threshold</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">{formatCurrency(batchInfo?.life_insurance_threshold ?? null)}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Months below threshold before life insurance loss</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">{batchInfo?.months_below_threshold ? `${batchInfo.months_below_threshold} months` : '—'}</div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Date range is already shown under the page title; remove the separate card. */}
 
       <Card>
         <CardHeader>
@@ -305,7 +313,7 @@ export default function LifeInsuranceBatchDetailPage() {
                         <TableCell className="font-mono text-sm text-muted-foreground">{row.memberUniqueId || '—'}</TableCell>
                         <TableCell>{row.birthdate ? formatDate(row.birthdate) : '—'}</TableCell>
                         <TableCell className="font-mono text-sm text-center">{formatCurrency(row.pendingHealthBalance)}</TableCell>
-                        <TableCell>{sanitizeStatus(row.newLifeInsuranceStatus)}</TableCell>
+                        <TableCell>{formatStatus(row.newLifeInsuranceStatus)}</TableCell>
                       </TableRow>
                     );
                   })
