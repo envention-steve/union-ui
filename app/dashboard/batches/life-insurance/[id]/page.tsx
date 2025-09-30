@@ -1,180 +1,321 @@
-"use client";
+ 'use client';
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { backendApiClient } from "@/lib/api-client";
-import { toast } from "sonner";
+import { useCallback, useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft, RefreshCw, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { backendApiClient } from '@/lib/api-client';
+import {
+  LifeInsuranceBatchSummary,
+  LifeInsuranceRawMember,
+  parseNumber,
+  formatCurrency,
+  formatDate,
+  extractDetailItems,
+  extractBatchMetadata,
+} from '@/lib/life-insurance-helpers';
 
-interface LifeInsuranceBatch {
-  id: number;
-  start_date: string;
-  end_date: string;
-  status: string;
-  posted: boolean;
-  error_message?: string;
+interface LifeInsuranceMemberRow {
+  id: number | null;
+  memberName: string;
+  memberUniqueId: string | null;
+  birthdate: string | null;
+  pendingHealthBalance: number | null;
+  newLifeInsuranceStatus: string | null;
 }
 
-interface Member {
-    id: number;
-    first_name: string;
-    last_name: string;
-    life_insurance_status: string;
-}
+const listRoute = '/dashboard/batches/life-insurance';
 
-export default function LifeInsuranceBatchPage() {
+// helpers imported from lib/life-insurance-helpers
+
+export default function LifeInsuranceBatchDetailPage() {
   const params = useParams();
-  const { id } = params;
+  const router = useRouter();
+  const id = params?.id as string;
 
-  const [batch, setBatch] = useState<LifeInsuranceBatch | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [batchInfo, setBatchInfo] = useState<LifeInsuranceBatchSummary | null>(null);
+  const [memberRows, setMemberRows] = useState<LifeInsuranceMemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<'post' | 'unpost' | 'delete' | null>(null);
 
-  useEffect(() => {
-    if (id) {
-      const fetchBatch = async () => {
-        try {
-          setLoading(true);
-          const data = await backendApiClient.lifeInsuranceBatches.get(id as string);
-          setBatch(data);
-        } catch (err) {
-          setError("Failed to load life insurance batch.");
-          console.error(err);
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchBatch();
+  const fetchBatchData = useCallback(async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      setError(null);
+
+  const detailsResponse = await backendApiClient.lifeInsuranceBatches.get(id);
+
+      const normalizedBatch = extractBatchMetadata(detailsResponse) ?? null;
+
+      const detailItems = extractDetailItems(detailsResponse);
+      const rows: LifeInsuranceMemberRow[] = detailItems.map((item: LifeInsuranceRawMember) => {
+        const memberObj = (item.member ?? {}) as Record<string, unknown>;
+        const memberName =
+          item.member_name ?? (memberObj['full_name'] as string | undefined) ?? `${(memberObj['last_name'] as string | undefined) ?? ''}${(memberObj['first_name'] as string | undefined) ? ', ' + (memberObj['first_name'] as string) : ''}`;
+        const uniqueId = item.member_unique_id ?? (memberObj['unique_id'] as string | undefined) ?? null;
+        const birthdate = item.birth_date ?? item.birthdate ?? (memberObj['birth_date'] as string | undefined) ?? (memberObj['birthdate'] as string | undefined) ?? (memberObj['dob'] as string | undefined) ?? null;
+        const pending = parseNumber(item.pending_health_balance ?? item.health_balance ?? item.pending_balance ?? item.pending_health_balance) ?? null;
+        const status = item.new_life_insurance_status ?? item.new_status ?? item.status ?? item.status ?? null;
+        const rowId = parseNumber(item.id ?? item.coverage_id ?? item.life_insurance_person_id) ?? null;
+
+        return {
+          id: rowId,
+          memberName: typeof memberName === 'string' ? memberName : 'Unknown member',
+          memberUniqueId: uniqueId ?? null,
+          birthdate: birthdate ?? null,
+          pendingHealthBalance: pending,
+          newLifeInsuranceStatus: status ?? null,
+        };
+      });
+
+      setBatchInfo(normalizedBatch);
+      setMemberRows(rows);
+    } catch (fetchError) {
+      console.error('Failed to load life insurance batch details', fetchError);
+      setError('Failed to load life insurance batch details. Please try again.');
+      setBatchInfo(null);
+      setMemberRows([]);
+    } finally {
+      setLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    if (batch && batch.status !== 'COMPLETED' && batch.status !== 'FAILED') {
-      const interval = setInterval(async () => {
-        try {
-          const data = await backendApiClient.lifeInsuranceBatches.get(id as string);
-          setBatch(data);
-        } catch (err) {
-          console.error(err);
-        }
-      }, 5000);
-      return () => clearInterval(interval);
-    } else if (batch?.status === 'COMPLETED') {
-      const fetchMembers = async () => {
-        try {
-          // TODO: The backend needs to be updated to return the life insurance status for all members in a single call.
-          // The current implementation is a placeholder and will not display the correct life insurance status.
-          const memberData = await backendApiClient.members.list();
-          setMembers(memberData.items);
-        } catch (err) {
-          setError("Failed to load members for the batch.");
-          console.error(err);
-        }
-      };
-      fetchMembers();
-    }
-  }, [batch, id]);
+    fetchBatchData();
+  }, [fetchBatchData]);
+
+  const handleBackToList = () => {
+    router.push(listRoute);
+  };
 
   const handlePostBatch = async () => {
-    if (!batch) return;
-
+    if (!id || batchInfo?.posted) return;
     try {
-      await backendApiClient.lifeInsuranceBatches.post(batch.id.toString());
-      toast.success("Batch posted successfully!");
-      setBatch({ ...batch, posted: true });
-    } catch (err) {
-      toast.error("Failed to post batch.");
-      console.error(err);
+      setActionLoading('post');
+      await backendApiClient.lifeInsuranceBatches.post(id);
+      await fetchBatchData();
+    } catch (postError) {
+      console.error('Failed to post life insurance batch', postError);
+      setError('Posting batch failed. Please try again.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleUnpostBatch = async () => {
-    if (!batch) return;
-
+    if (!id || !batchInfo?.posted) return;
     try {
-      await backendApiClient.lifeInsuranceBatches.unpost(batch.id.toString());
-      toast.success("Batch unposted successfully!");
-      setBatch({ ...batch, posted: false });
-    } catch (err) {
-      toast.error("Failed to unpost batch.");
-      console.error(err);
+      setActionLoading('unpost');
+      await backendApiClient.lifeInsuranceBatches.unpost(id);
+  setBatchInfo((current: LifeInsuranceBatchSummary | null) => (current ? { ...current, posted: false } : current));
+    } catch (unpostError) {
+      console.error('Failed to unpost life insurance batch', unpostError);
+      setError('Unposting batch failed. Please try again.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
+  const handleDeleteBatch = async () => {
+    if (!id) return;
+    if (!confirm('Delete this life insurance batch? This action cannot be undone.')) return;
+
+    try {
+      setActionLoading('delete');
+      await backendApiClient.lifeInsuranceBatches.delete?.(id);
+      router.push(listRoute);
+    } catch (deleteError) {
+      console.error('Failed to delete life insurance batch', deleteError);
+      setError('Failed to delete batch. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRefresh = () => {
+    fetchBatchData();
+  };
+
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="h-8 w-8 rounded bg-gray-200 animate-pulse" />
+          <div className="h-8 w-48 rounded bg-gray-200 animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className="h-32 rounded bg-gray-200 animate-pulse" />
+          ))}
+        </div>
+        <div className="h-96 rounded bg-gray-200 animate-pulse" />
+      </div>
+    );
   }
 
   if (error) {
-    return <div>{error}</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={handleBackToList} className="text-union-600 hover:text-union-700">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center text-red-600">
+              <p>{error}</p>
+              <Button onClick={handleRefresh} className="mt-4 bg-union-600 text-white hover:bg-union-700">
+                Try again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
-  if (!batch) {
-    return <div>Batch not found.</div>;
+  const dateRangeLabel = batchInfo?.start_date && batchInfo?.end_date
+    ? `${formatDate(batchInfo.start_date)} through ${formatDate(batchInfo.end_date)}`
+    : 'Date range unavailable';
+
+  function sanitizeStatus(status: string | null | undefined) {
+    if (!status) return '—';
+    // Replace underscores with spaces, downcase, then title case each word
+    const normalized = String(status).replace(/_/g, ' ').toLowerCase();
+    return normalized.replace(/\b\w/g, (ch) => ch.toUpperCase());
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-union-900">Life Insurance Batch Details</h1>
-          <p className="text-muted-foreground">
-            Batch from {new Date(batch.start_date).toLocaleDateString()} to {new Date(batch.end_date).toLocaleDateString()}
-          </p>
+          <Button variant="ghost" onClick={handleBackToList} className="text-union-600 hover:text-union-700">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+          <h1 className="text-3xl font-bold text-union-900">Life Insurance Batch</h1>
+          <p className="text-muted-foreground">{dateRangeLabel}</p>
         </div>
         <div className="flex gap-2">
-          {batch.posted ? (
-            <Button onClick={handleUnpostBatch} variant="secondary">Unpost Batch</Button>
+          {batchInfo?.posted ? (
+            <Button
+              variant="outline"
+              onClick={handleUnpostBatch}
+              disabled={actionLoading === 'unpost'}
+              className="border-orange-200 text-orange-600 hover:border-orange-300 hover:text-orange-700"
+            >
+              {actionLoading === 'unpost' ? (
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                'Unpost'
+              )}
+            </Button>
           ) : (
-            <Button onClick={handlePostBatch}>Post Batch</Button>
+            <Button onClick={handlePostBatch} disabled={actionLoading === 'post'} className="bg-green-600 text-white hover:bg-green-700">
+              {actionLoading === 'post' ? (
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                'Post'
+              )}
+            </Button>
           )}
+          <Button variant="destructive" onClick={handleDeleteBatch} disabled={batchInfo?.posted || actionLoading === 'delete'}>
+            {actionLoading === 'delete' ? (
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 h-4 w-4" />
+            )}
+            Delete
+          </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Report date range</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground">{dateRangeLabel}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Life insurance threshold</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground">{formatCurrency(batchInfo?.life_insurance_threshold ?? null)}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Months below threshold before life insurance loss</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground">{batchInfo?.months_below_threshold ? `${batchInfo.months_below_threshold} months` : '—'}</div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Batch Status: {batch.status}</CardTitle>
-          {batch.status === 'FAILED' && batch.error_message && (
-            <CardDescription className="text-red-500">{batch.error_message}</CardDescription>
-          )}
+          <CardTitle className="text-lg">Life Insurance Members ({memberRows.length})</CardTitle>
+          <CardDescription>Member details and status changes for this batch.</CardDescription>
         </CardHeader>
-      </Card>
-
-      {batch.status === 'COMPLETED' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Members</CardTitle>
-            <CardDescription>
-              This batch updated the life insurance status for {members.length} members.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
+                <TableHeader>
                 <TableRow>
-                  <TableHead>Member ID</TableHead>
-                  <TableHead>First Name</TableHead>
-                  <TableHead>Last Name</TableHead>
-                  <TableHead>Life Insurance Status</TableHead>
+                  <TableHead className="w-[35%]">Member</TableHead>
+                  <TableHead className="w-[15%]">Member ID</TableHead>
+                  <TableHead className="w-[15%]">Birthdate</TableHead>
+                    <TableHead className="w-[20%] text-center">Pending Health Balance</TableHead>
+                    <TableHead className="w-[15%]">New Life Insurance Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {members.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell>{member.id}</TableCell>
-                    <TableCell>{member.first_name}</TableCell>
-                    <TableCell>{member.last_name}</TableCell>
-                    <TableCell>{member.life_insurance_status}</TableCell>
+                {memberRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                      No member records were returned for this batch.
+                    </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  memberRows.map((row, index) => {
+                    const key = row.id ?? row.memberUniqueId ?? index;
+                    return (
+                      <TableRow key={key}>
+                        <TableCell className="font-medium">{row.memberName}</TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">{row.memberUniqueId || '—'}</TableCell>
+                        <TableCell>{row.birthdate ? formatDate(row.birthdate) : '—'}</TableCell>
+                        <TableCell className="font-mono text-sm text-center">{formatCurrency(row.pendingHealthBalance)}</TableCell>
+                        <TableCell>{sanitizeStatus(row.newLifeInsuranceStatus)}</TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
+
