@@ -48,6 +48,7 @@ import {
   isAnnuityUpdateEntry
 } from '@/types/ledger-entries';
 import { AnnuityPayoutForm } from '@/components/features/annuity/annuity-payout-form';
+import { EditBeneficiaryDialog, LifeInsuranceCoverage as DialogLifeInsuranceCoverage } from '@/components/features/members/edit-beneficiary-dialog';
 
 // Component to render type-specific ledger entry details
 const LedgerEntryExpandedDetails: React.FC<{ entry: PolymorphicLedgerEntry }> = ({ entry }) => {
@@ -311,6 +312,17 @@ interface MemberStatus {
   admin_fee: string;
 }
 
+interface LifeInsurancePerson {
+  id: number;
+  first_name: string;
+  last_name: string;
+  middle_name?: string;
+  suffix?: string;
+  ssn?: string;
+  birth_date?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+}
+
 interface Coverage {
   id: number;
   created_at: string;
@@ -448,6 +460,7 @@ interface LifeInsuranceCoverage extends Coverage {
   beneficiary_info_received?: boolean;
   beneficiary?: string;
   life_insurance_person_id?: number;
+  life_insurance_person?: LifeInsurancePerson;
 }
 
 interface MemberFormData {
@@ -502,6 +515,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   const mode = searchParams.get('mode') || 'view';
   const isEditMode = mode === 'edit';
 
+  const [editingBeneficiaryCoverage, setEditingBeneficiaryCoverage] = useState<DialogLifeInsuranceCoverage | null>(null);
   const [activeTab, setActiveTab] = useState('member');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1099,6 +1113,10 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     }
   };
 
+  const handleEditBeneficiary = (coverage: DialogLifeInsuranceCoverage) => {
+    setEditingBeneficiaryCoverage(coverage);
+  };
+
   const handleBackToList = () => {
     if (hasUnsavedChanges) {
       if (confirm('You have unsaved changes. Are you sure you want to leave?')) {
@@ -1244,6 +1262,37 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
             }
           : depCoverage
       )
+    }));
+  };
+
+  const updateLifeInsurancePerson = (index: number, field: string, value: string | number | boolean | undefined) => {
+    setFormData(prev => ({
+      ...prev,
+      life_insurance_coverages: prev.life_insurance_coverages.map((coverage, i) =>
+        i === index
+          ? {
+              ...coverage,
+              life_insurance_person: {
+                ...(coverage.life_insurance_person!),
+                [field]: value,
+              } as LifeInsurancePerson,
+            }
+          : coverage
+      ),
+    }) as MemberFormData);
+  };
+
+  const updateLifeInsuranceCoverage = (index: number, field: string, value: string | number | boolean | undefined) => {
+    setFormData(prev => ({
+      ...prev,
+      life_insurance_coverages: prev.life_insurance_coverages.map((coverage, i) =>
+        i === index
+          ? {
+              ...coverage,
+              [field]: value,
+            }
+          : coverage
+      ),
     }));
   };
 
@@ -1825,16 +1874,27 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
     });
   }, [formData.member_notes]);
 
-  // Coverage display component
   const CoverageList = React.memo(({ 
     title, 
     coverages, 
-    type 
+    type,
+    onEditBeneficiary
   }: { 
     title: string; 
     coverages: DistributionClassCoverage[] | MemberStatusCoverage[] | LifeInsuranceCoverage[] | InsurancePlanCoverage[];
     type: 'distribution_class' | 'member_status' | 'life_insurance' | 'insurance_plan';
+    onEditBeneficiary?: (coverage: LifeInsuranceCoverage) => void;
   }) => {
+    let currentLifeCoverageId: number | null = null;
+    if (type === 'life_insurance') {
+      const lifeCoverages = coverages as LifeInsuranceCoverage[];
+      // Find the first coverage without an end date, assuming coverages are sorted newest first.
+      const currentCoverage = lifeCoverages.find(c => !c.end_date);
+      if (currentCoverage) {
+        currentLifeCoverageId = currentCoverage.id;
+      }
+    }
+
   const getDisplayName = (coverage: Coverage | DistributionClassCoverage | MemberStatusCoverage | LifeInsuranceCoverage | DependentCoverage | EmployerCoverage | InsurancePlanCoverage) => {
       if (type === 'distribution_class' && 'distribution_class' in coverage && coverage.distribution_class) {
         return coverage.distribution_class.description;
@@ -1849,7 +1909,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   return 'status' in coverage ? (coverage as { status?: string }).status || 'N/A' : 'N/A';
     };
 
-  const getSecondaryInfo = (coverage: Coverage | DistributionClassCoverage | MemberStatusCoverage | LifeInsuranceCoverage | DependentCoverage | EmployerCoverage | InsurancePlanCoverage) => {
+  const getSecondaryInfo = (coverage: Coverage | DistributionClassCoverage | MemberStatusCoverage | LifeInsuranceCoverage | DependentCoverage | EmployerCoverage | InsurancePlanCoverage): React.ReactNode | null => {
       if (type === 'distribution_class' && 'distribution_class' in coverage && coverage.distribution_class) {
         return `Class: ${coverage.distribution_class.name}`;
       }
@@ -1868,12 +1928,36 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         return info.length > 0 ? info.join(' | ') : null;
       }
       if (type === 'life_insurance') {
-        const info = [];
-        if ('beneficiary' in coverage && coverage.beneficiary) info.push(`Beneficiary: ${coverage.beneficiary}`);
-        if ('beneficiary_info_received' in coverage && coverage.beneficiary_info_received !== undefined) {
-          info.push(`Beneficiary Info: ${coverage.beneficiary_info_received ? 'Received' : 'Pending'}`);
+        const coverageWithPerson = coverage as LifeInsuranceCoverage;
+        // Render beneficiary info and beneficiary on separate lines, with info first.
+        const lines: string[] = [];
+        if (coverageWithPerson.beneficiary_info_received !== undefined) {
+          lines.push(`Beneficiary Info: ${coverageWithPerson.beneficiary_info_received ? 'Received' : 'Pending'}`);
         }
-        return info.length > 0 ? info.join(' | ') : null;
+        if (coverageWithPerson.beneficiary) {
+          lines.push(`Beneficiary: ${coverageWithPerson.beneficiary}`);
+        }
+        
+        return (
+          <div className="flex items-start justify-between w-full">
+            <div>
+              {lines.length > 0 ? lines.map((line, index) => (
+                <div key={index}>{line}</div>
+              )) : <div className="text-gray-500">No beneficiary info</div>}
+            </div>
+            {onEditBeneficiary && coverage.id === currentLifeCoverageId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onEditBeneficiary(coverageWithPerson)}
+                className="ml-4"
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            )}
+          </div>
+        );
       }
       return null;
     };
@@ -2040,7 +2124,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                           <div>
                             <p className="text-sm font-medium text-gray-900">{displayName}</p>
                             {secondaryInfo && (
-                              <p className="text-xs text-gray-600 mt-1">{secondaryInfo}</p>
+                              <div className="text-xs text-gray-600 mt-1">{secondaryInfo}</div>
                             )}
                           </div>
                         )}
@@ -2154,6 +2238,106 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                           )}
                         </div>
                       )}
+
+                      {/* Insured Person section for life insurance coverages */}
+                      {type === 'life_insurance' && (coverage as LifeInsuranceCoverage).life_insurance_person && (
+                        <div className="border-t pt-4 mt-4">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">Insured Person</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                First Name
+                              </label>
+                              {isEditMode ? (
+                                <Input
+                                  value={(coverage as LifeInsuranceCoverage).life_insurance_person?.first_name || ''}
+                                  onChange={(e) => updateLifeInsurancePerson(index, 'first_name', e.target.value)}
+                                />
+                              ) : (
+                                <p className="text-sm">{(coverage as LifeInsuranceCoverage).life_insurance_person?.first_name || 'N/A'}</p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Middle Name
+                              </label>
+                              {isEditMode ? (
+                                <Input
+                                  value={(coverage as LifeInsuranceCoverage).life_insurance_person?.middle_name || ''}
+                                  onChange={(e) => updateLifeInsurancePerson(index, 'middle_name', e.target.value)}
+                                />
+                              ) : (
+                                <p className="text-sm">{(coverage as LifeInsuranceCoverage).life_insurance_person?.middle_name || 'N/A'}</p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Last Name
+                              </label>
+                              {isEditMode ? (
+                                <Input
+                                  value={(coverage as LifeInsuranceCoverage).life_insurance_person?.last_name || ''}
+                                  onChange={(e) => updateLifeInsurancePerson(index, 'last_name', e.target.value)}
+                                />
+                              ) : (
+                                <p className="text-sm">{(coverage as LifeInsuranceCoverage).life_insurance_person?.last_name || 'N/A'}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                SSN
+                              </label>
+                              {isEditMode ? (
+                                <Input
+                                  value={(coverage as LifeInsuranceCoverage).life_insurance_person?.ssn || ''}
+                                  onChange={(e) => updateLifeInsurancePerson(index, 'ssn', e.target.value)}
+                                />
+                              ) : (
+                                <p className="text-sm">{(coverage as LifeInsuranceCoverage).life_insurance_person?.ssn ? '***-**-****' : 'N/A'}</p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Birth Date
+                              </label>
+                              {isEditMode ? (
+                                <Input
+                                  type="date"
+                                  value={(coverage as LifeInsuranceCoverage).life_insurance_person?.birth_date ? (coverage as LifeInsuranceCoverage).life_insurance_person?.birth_date.split('T')[0] : ''}
+                                  onChange={(e) => updateLifeInsurancePerson(index, 'birth_date', e.target.value)}
+                                />
+                              ) : (
+                                <p className="text-sm">{(coverage as LifeInsuranceCoverage).life_insurance_person?.birth_date ? new Date((coverage as LifeInsuranceCoverage).life_insurance_person!.birth_date!).toLocaleDateString() : 'N/A'}</p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Gender
+                              </label>
+                              {isEditMode ? (
+                                <Select 
+                                  value={(coverage as LifeInsuranceCoverage).life_insurance_person?.gender || 'not-specified'} 
+                                  onValueChange={(value) => updateLifeInsurancePerson(index, 'gender', value === 'not-specified' ? undefined : value)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select Gender" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="not-specified">Not Specified</SelectItem>
+                                    <SelectItem value="MALE">Male</SelectItem>
+                                    <SelectItem value="FEMALE">Female</SelectItem>
+                                    <SelectItem value="OTHER">Other</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <p className="text-sm">{(coverage as LifeInsuranceCoverage).life_insurance_person?.gender || 'N/A'}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -2210,1029 +2394,1315 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            onClick={handleBackToList}
-            className="hover:bg-gray-100"
-            aria-label="Back to members list"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-union-900">
-              {isEditMode ? 'Edit Member' : 'Member Management'}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-gray-600">
-                {formData.first_name} {formData.last_name}
-              </span>
-              <Badge 
-                variant="outline" 
-                className="text-xs bg-blue-50 text-blue-700 border-blue-200"
-              >
-                Unique ID: {formData.unique_id}
-              </Badge>
+    <>
+      <EditBeneficiaryDialog
+        isOpen={!!editingBeneficiaryCoverage}
+        onClose={() => setEditingBeneficiaryCoverage(null)}
+        coverage={editingBeneficiaryCoverage}
+        onSave={async (updatedCoverage) => {
+          if (!editingBeneficiaryCoverage) return;
+
+          setSaving(true);
+          setError(null);
+          setSuccess(null);
+
+          try {
+            const memberId = resolvedParams.id;
+            const payload = {
+              beneficiary: updatedCoverage.beneficiary,
+              life_insurance_person: updatedCoverage.life_insurance_person,
+            };
+
+            await backendApiClient.post(`/api/v1/members/${memberId}/life-insurance-beneficiary`, payload);
+
+            setSuccess('Beneficiary information updated successfully!');
+            await fetchMember(); // Refresh data
+          } catch (err) {
+            console.error('Error updating beneficiary:', err);
+            setError('Failed to update beneficiary information.');
+          } finally {
+            setSaving(false);
+            setEditingBeneficiaryCoverage(null);
+          }
+        }}
+      />
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="ghost" 
+              onClick={handleBackToList}
+              className="hover:bg-gray-100"
+              aria-label="Back to members list"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-union-900">
+                {isEditMode ? 'Edit Member' : 'Member Management'}
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-gray-600">
+                  {formData.first_name} {formData.last_name}
+                </span>
+                <Badge 
+                  variant="outline" 
+                  className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                >
+                  Unique ID: {formData.unique_id}
+                </Badge>
+              </div>
             </div>
           </div>
-        </div>
-        
-        <div className="flex gap-2">
-          {isEditMode ? (
-            <>
-              <Button 
-                variant="outline" 
-                onClick={handleCancel}
-                disabled={saving}
-                className="text-gray-600 hover:text-gray-800"
-              >
-                <X className="mr-2 h-4 w-4" />
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={saving}
-                className="bg-union-600 hover:bg-union-700 text-white"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </>
-          ) : (
-            <Button 
-              onClick={() => router.push(`/dashboard/members/${resolvedParams.id}?mode=edit`)}
-              className="bg-union-600 hover:bg-union-700 text-white"
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-red-600 text-sm">{error}</div>
-          </CardContent>
-        </Card>
-      )}
-      
-      {/* Success Display */}
-      {success && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-green-600 text-sm">{success}</div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex space-x-8">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-union-600 text-union-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === 'member' && (
-        <div className="grid gap-6">
-          {/* Member Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Member Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    SSN
-                  </label>
-                  <Input
-                    value="***-**-6789"
-                    disabled={true}
-                    className="bg-gray-50"
-                  />
-                </div>
-
-                <div></div> {/* Empty space for grid layout */}
-                <div></div> {/* Empty space for grid layout */}
-
-                <div>
-                  <label htmlFor="member-first-name" className="block text-sm font-medium text-gray-700 mb-1">
-                    First Name
-                  </label>
-                  <Input
-                    id="member-first-name"
-                    value={formData.first_name}
-                    onChange={(e) => handleInputChange('first_name', e.target.value)}
-                    disabled={!isEditMode}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Middle Name
-                  </label>
-                  <Input
-                    value={formData.middle_name || ''}
-                    onChange={(e) => handleInputChange('middle_name', e.target.value)}
-                    disabled={!isEditMode}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="member-last-name" className="block text-sm font-medium text-gray-700 mb-1">
-                    Last Name
-                  </label>
-                  <Input
-                    id="member-last-name"
-                    value={formData.last_name}
-                    onChange={(e) => handleInputChange('last_name', e.target.value)}
-                    disabled={!isEditMode}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Suffix
-                  </label>
-                  <Select 
-                    value={formData.suffix || 'none'} 
-                    onValueChange={(value) => handleInputChange('suffix', value === 'none' ? '' : value)}
-                    disabled={!isEditMode}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      <SelectItem value="Jr.">Jr.</SelectItem>
-                      <SelectItem value="Sr.">Sr.</SelectItem>
-                      <SelectItem value="II">II</SelectItem>
-                      <SelectItem value="III">III</SelectItem>
-                      <SelectItem value="IV">IV</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Gender
-                  </label>
-                  <Select 
-                    value={formData.gender || 'not-specified'} 
-                    onValueChange={(value) => handleInputChange('gender', value === 'not-specified' ? undefined : value)}
-                    disabled={!isEditMode}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="not-specified">Not Specified</SelectItem>
-                      <SelectItem value="MALE">Male</SelectItem>
-                      <SelectItem value="FEMALE">Female</SelectItem>
-                      <SelectItem value="OTHER">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Birth Date
-                  </label>
-                  <Input
-                    type="date"
-                    value={formData.birth_date ? formData.birth_date.split('T')[0] : ''}
-                    onChange={(e) => handleInputChange('birth_date', e.target.value)}
-                    disabled={!isEditMode}
-                  />
-                </div>
-              </div>
-              
-              {/* Checkbox Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="deceased"
-                    checked={formData.deceased}
-                    onCheckedChange={(checked) => handleInputChange('deceased', checked)}
-                    disabled={!isEditMode}
-                  />
-                  <Label 
-                    htmlFor="deceased" 
-                    className="text-sm font-medium text-gray-700 cursor-pointer"
-                  >
-                    Deceased
-                  </Label>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="include-cms"
-                    checked={formData.include_cms}
-                    onCheckedChange={(checked) => handleInputChange('include_cms', checked)}
-                    disabled={!isEditMode}
-                  />
-                  <Label 
-                    htmlFor="include-cms" 
-                    className="text-sm font-medium text-gray-700 cursor-pointer"
-                  >
-                    Include in CMS Report
-                  </Label>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="lock-distribution"
-                    checked={formData.is_forced_distribution}
-                    onCheckedChange={(checked) => handleInputChange('is_forced_distribution', checked)}
-                    disabled={!isEditMode}
-                  />
-                  <Label 
-                    htmlFor="lock-distribution" 
-                    className="text-sm font-medium text-gray-700 cursor-pointer"
-                  >
-                    Lock Distribution Class
-                  </Label>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Addresses */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Addresses</CardTitle>
-              {isEditMode && (
+          
+          <div className="flex gap-2">
+            {isEditMode ? (
+              <>
                 <Button 
-                  onClick={addAddress}
-                  size="sm"
+                  variant="outline" 
+                  onClick={handleCancel}
+                  disabled={saving}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleSave} 
+                  disabled={saving || !hasUnsavedChanges}
                   className="bg-union-600 hover:bg-union-700 text-white"
                 >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Add Address
+                  <Save className="mr-2 h-4 w-4" />
+                  {saving ? 'Saving...' : 'Save Changes'}
                 </Button>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {formData.addresses.length === 0 ? (
-                <p className="text-gray-500 text-sm">No addresses added</p>
-              ) : (
-                formData.addresses.map((address, index) => (
-                  <div key={address.id || `address-${index}`} className="border rounded-lg p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              </>
+            ) : (
+              <Button 
+                onClick={() => router.push(`/dashboard/members/${resolvedParams.id}?mode=edit`)}
+                className="bg-union-600 hover:bg-union-700 text-white"
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-red-600 text-sm">{error}</div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Success Display */}
+        {success && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-green-600 text-sm">{success}</div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Tabs */}
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === tab.id
+                      ? 'border-union-600 text-union-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'member' && (
+          <div className="grid gap-6">
+            {/* Member Details */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Member Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SSN
+                    </label>
+                    <Input
+                      value="***-**-6789"
+                      disabled={true}
+                      className="bg-gray-50"
+                    />
+                  </div>
+
+                  <div></div> {/* Empty space for grid layout */}
+                  <div></div> {/* Empty space for grid layout */}
+
+                  <div>
+                    <label htmlFor="member-first-name" className="block text-sm font-medium text-gray-700 mb-1">
+                      First Name
+                    </label>
+                    <Input
+                      id="member-first-name"
+                      value={formData.first_name}
+                      onChange={(e) => handleInputChange('first_name', e.target.value)}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Middle Name
+                    </label>
+                    <Input
+                      value={formData.middle_name || ''}
+                      onChange={(e) => handleInputChange('middle_name', e.target.value)}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="member-last-name" className="block text-sm font-medium text-gray-700 mb-1">
+                      Last Name
+                    </label>
+                    <Input
+                      id="member-last-name"
+                      value={formData.last_name}
+                      onChange={(e) => handleInputChange('last_name', e.target.value)}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Suffix
+                    </label>
+                    <Select 
+                      value={formData.suffix || 'none'} 
+                      onValueChange={(value) => handleInputChange('suffix', value === 'none' ? '' : value)}
+                      disabled={!isEditMode}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="None" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="Jr.">Jr.</SelectItem>
+                        <SelectItem value="Sr.">Sr.</SelectItem>
+                        <SelectItem value="II">II</SelectItem>
+                        <SelectItem value="III">III</SelectItem>
+                        <SelectItem value="IV">IV</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Gender
+                    </label>
+                    <Select 
+                      value={formData.gender || 'not-specified'} 
+                      onValueChange={(value) => handleInputChange('gender', value === 'not-specified' ? undefined : value)}
+                      disabled={!isEditMode}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Gender" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="not-specified">Not Specified</SelectItem>
+                        <SelectItem value="MALE">Male</SelectItem>
+                        <SelectItem value="FEMALE">Female</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Birth Date
+                    </label>
+                    <Input
+                      type="date"
+                      value={formData.birth_date ? formData.birth_date.split('T')[0] : ''}
+                      onChange={(e) => handleInputChange('birth_date', e.target.value)}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                </div>
+                
+                {/* Checkbox Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="deceased"
+                      checked={formData.deceased}
+                      onCheckedChange={(checked) => handleInputChange('deceased', checked)}
+                      disabled={!isEditMode}
+                    />
+                    <Label 
+                      htmlFor="deceased" 
+                      className="text-sm font-medium text-gray-700 cursor-pointer"
+                    >
+                      Deceased
+                    </Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="include-cms"
+                      checked={formData.include_cms}
+                      onCheckedChange={(checked) => handleInputChange('include_cms', checked)}
+                      disabled={!isEditMode}
+                    />
+                    <Label 
+                      htmlFor="include-cms" 
+                      className="text-sm font-medium text-gray-700 cursor-pointer"
+                    >
+                      Include in CMS Report
+                    </Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="lock-distribution"
+                      checked={formData.is_forced_distribution}
+                      onCheckedChange={(checked) => handleInputChange('is_forced_distribution', checked)}
+                      disabled={!isEditMode}
+                    />
+                    <Label 
+                      htmlFor="lock-distribution" 
+                      className="text-sm font-medium text-gray-700 cursor-pointer"
+                    >
+                      Lock Distribution Class
+                    </Label>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Addresses */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg font-semibold">Addresses</CardTitle>
+                {isEditMode && (
+                  <Button 
+                    onClick={addAddress}
+                    size="sm"
+                    className="bg-union-600 hover:bg-union-700 text-white"
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add Address
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {formData.addresses.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No addresses added</p>
+                ) : (
+                  formData.addresses.map((address, index) => (
+                    <div key={address.id || `address-${index}`} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Address Type
+                            </label>
+                            <Select 
+                              value={address.type} 
+                              onValueChange={(value) => updateAddress(index, 'type', value)}
+                              disabled={!isEditMode}
+                            >
+                              <SelectTrigger className="w-[150px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Home">Home</SelectItem>
+                                <SelectItem value="Work">Work</SelectItem>
+                                <SelectItem value="Mailing">Mailing</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        {isEditMode && (
+                          <Button 
+                            onClick={() => removeAddress(index)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="md:col-span-2 lg:col-span-2">
+                          <label htmlFor={`address-street1-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
+                            Street Address 1
+                          </label>
+                          <Input
+                            id={`address-street1-${index}`}
+                            value={address.street1}
+                            onChange={(e) => updateAddress(index, 'street1', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div className="md:col-span-2 lg:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Street Address 2
+                          </label>
+                          <Input
+                            value={address.street2 || ''}
+                            onChange={(e) => updateAddress(index, 'street2', e.target.value)}
+                            disabled={!isEditMode}
+                            placeholder="Apt, Suite, Unit, etc. (Optional)"
+                          />
+                        </div>
+                        
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Address Type
+                            City
+                          </label>
+                          <Input
+                            value={address.city}
+                            onChange={(e) => updateAddress(index, 'city', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            State
+                          </label>
+                          <Input
+                            value={address.state}
+                            onChange={(e) => updateAddress(index, 'state', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            ZIP Code
+                          </label>
+                          <Input
+                            value={address.zip}
+                            onChange={(e) => updateAddress(index, 'zip', e.target.value)}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Phone Numbers */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg font-semibold">Phone Numbers</CardTitle>
+                {isEditMode && (
+                  <Button 
+                    onClick={addPhoneNumber}
+                    size="sm"
+                    className="bg-union-600 hover:bg-union-700 text-white"
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add Phone
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {formData.phoneNumbers.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No phone numbers added</p>
+                ) : (
+                  formData.phoneNumbers.map((phone, index) => (
+                    <div key={phone.id || `phone-${index}`} className="flex items-center gap-4">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Phone Type
                           </label>
                           <Select 
-                            value={address.type} 
-                            onValueChange={(value) => updateAddress(index, 'type', value)}
+                            value={phone.type} 
+                            onValueChange={(value) => updatePhoneNumber(index, 'type', value)}
                             disabled={!isEditMode}
                           >
-                            <SelectTrigger className="w-[150px]">
+                            <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="Mobile">Mobile</SelectItem>
                               <SelectItem value="Home">Home</SelectItem>
                               <SelectItem value="Work">Work</SelectItem>
-                              <SelectItem value="Mailing">Mailing</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
+                        
+                        <div>
+                          <label htmlFor={`phone-number-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
+                            Phone Number
+                          </label>
+                          <Input
+                            id={`phone-number-${index}`}
+                            value={phone.number}
+                            onChange={(e) => updatePhoneNumber(index, 'number', e.target.value)}
+                            disabled={!isEditMode}
+                            placeholder="(555) 123-4567"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Extension
+                          </label>
+                          <Input
+                            value={phone.extension || ''}
+                            onChange={(e) => updatePhoneNumber(index, 'extension', e.target.value)}
+                            disabled={!isEditMode}
+                            placeholder="Optional"
+                          />
+                        </div>
                       </div>
+                      
                       {isEditMode && (
                         <Button 
-                          onClick={() => removeAddress(index)}
+                          onClick={() => removePhoneNumber(index)}
                           variant="ghost"
                           size="sm"
-                          className="text-red-600 hover:text-red-800"
+                          className="text-red-600 hover:text-red-800 mt-6"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="md:col-span-2 lg:col-span-2">
-                        <label htmlFor={`address-street1-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
-                          Street Address 1
-                        </label>
-                        <Input
-                          id={`address-street1-${index}`}
-                          value={address.street1}
-                          onChange={(e) => updateAddress(index, 'street1', e.target.value)}
-                          disabled={!isEditMode}
-                        />
-                      </div>
-                      
-                      <div className="md:col-span-2 lg:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Street Address 2
-                        </label>
-                        <Input
-                          value={address.street2 || ''}
-                          onChange={(e) => updateAddress(index, 'street2', e.target.value)}
-                          disabled={!isEditMode}
-                          placeholder="Apt, Suite, Unit, etc. (Optional)"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          City
-                        </label>
-                        <Input
-                          value={address.city}
-                          onChange={(e) => updateAddress(index, 'city', e.target.value)}
-                          disabled={!isEditMode}
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          State
-                        </label>
-                        <Input
-                          value={address.state}
-                          onChange={(e) => updateAddress(index, 'state', e.target.value)}
-                          disabled={!isEditMode}
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          ZIP Code
-                        </label>
-                        <Input
-                          value={address.zip}
-                          onChange={(e) => updateAddress(index, 'zip', e.target.value)}
-                          disabled={!isEditMode}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+                  ))
+                )}
+              </CardContent>
+            </Card>
 
-          {/* Phone Numbers */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Phone Numbers</CardTitle>
-              {isEditMode && (
-                <Button 
-                  onClick={addPhoneNumber}
-                  size="sm"
-                  className="bg-union-600 hover:bg-union-700 text-white"
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Add Phone
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {formData.phoneNumbers.length === 0 ? (
-                <p className="text-gray-500 text-sm">No phone numbers added</p>
-              ) : (
-                formData.phoneNumbers.map((phone, index) => (
-                  <div key={phone.id || `phone-${index}`} className="flex items-center gap-4">
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Phone Type
-                        </label>
-                        <Select 
-                          value={phone.type} 
-                          onValueChange={(value) => updatePhoneNumber(index, 'type', value)}
-                          disabled={!isEditMode}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Mobile">Mobile</SelectItem>
-                            <SelectItem value="Home">Home</SelectItem>
-                            <SelectItem value="Work">Work</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div>
-                        <label htmlFor={`phone-number-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
-                          Phone Number
-                        </label>
-                        <Input
-                          id={`phone-number-${index}`}
-                          value={phone.number}
-                          onChange={(e) => updatePhoneNumber(index, 'number', e.target.value)}
-                          disabled={!isEditMode}
-                          placeholder="(555) 123-4567"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Extension
-                        </label>
-                        <Input
-                          value={phone.extension || ''}
-                          onChange={(e) => updatePhoneNumber(index, 'extension', e.target.value)}
-                          disabled={!isEditMode}
-                          placeholder="Optional"
-                        />
-                      </div>
-                    </div>
-                    
-                    {isEditMode && (
-                      <Button 
-                        onClick={() => removePhoneNumber(index)}
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-800 mt-6"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Email Addresses */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Email Addresses</CardTitle>
-              {isEditMode && (
-                <Button 
-                  onClick={addEmailAddress}
-                  size="sm"
-                  className="bg-union-600 hover:bg-union-700 text-white"
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Add Email
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {formData.emailAddresses.length === 0 ? (
-                <p className="text-gray-500 text-sm">No email addresses added</p>
-              ) : (
-                formData.emailAddresses.map((email, index) => (
-                  <div key={email.id || `email-${index}`} className="flex items-center gap-4">
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Email Type
-                        </label>
-                        <Select 
-                          value={email.type} 
-                          onValueChange={(value) => updateEmailAddress(index, 'type', value)}
-                          disabled={!isEditMode}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Personal">Personal</SelectItem>
-                            <SelectItem value="Work">Work</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div>
-                        <label htmlFor={`email-address-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
-                          Email Address
-                        </label>
-                        <Input
-                          id={`email-address-${index}`}
-                          type="email"
-                          value={email.email}
-                          onChange={(e) => updateEmailAddress(index, 'email', e.target.value)}
-                          disabled={!isEditMode}
-                          placeholder="email@example.com"
-                        />
-                      </div>
-                    </div>
-                    
-                    {isEditMode && (
-                      <Button 
-                        onClick={() => removeEmailAddress(index)}
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-800 mt-6"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Distribution Class and Member Status Coverage Sections */}
-          <CoverageList 
-            title="Distribution Class Coverages" 
-            coverages={formData.distribution_class_coverages} 
-            type="distribution_class"
-          />
-          
-          <div id="member-status-coverages">
-            <CoverageList 
-              title="Member Status Coverages" 
-              coverages={formData.member_status_coverages} 
-              type="member_status"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Health Coverage Tab */}
-      {activeTab === 'health-coverage' && (
-        <div className="grid gap-6">
-          <CoverageList 
-            title="Insurance Plan Coverages" 
-            coverages={formData.insurance_plan_coverages} 
-            type="insurance_plan"
-          />
-        </div>
-      )}
-
-      {/* Life Insurance Tab */}
-      {activeTab === 'life-insurance' && (
-        <div className="grid gap-6">
-          <CoverageList 
-            title="Life Insurance Coverages" 
-            coverages={formData.life_insurance_coverages} 
-            type="life_insurance"
-          />
-        </div>
-      )}
-
-      {/* Dependents Tab */}
-      {activeTab === 'dependents' && (
-        <div className="grid gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Dependents</CardTitle>
-              {isEditMode && (
-                <Button 
-                  onClick={addDependent}
-                  size="sm"
-                  className="bg-union-600 hover:bg-union-700 text-white"
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Add Dependent
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {formData.dependent_coverages.length === 0 ? (
-                <p className="text-gray-500 text-sm">No dependents found</p>
-              ) : (
-                formData.dependent_coverages.map((dependentCoverage, index) => {
-                  const dependent = dependentCoverage.dependent;
-                  if (!dependent) return null;
-                  return (
-                    <div key={dependentCoverage.id || index} className="border rounded-lg p-6 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {dependent.first_name} {dependent.middle_name} {dependent.last_name}
-                        </h3>
-                        {isEditMode && (
-                          <Button 
-                            onClick={() => removeDependent(index)}
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                          <label htmlFor={`dependent-${index}-first-name`} className="block text-sm font-medium text-gray-700 mb-1">
-                            First Name
-                          </label>
-                          <Input
-                            id={`dependent-${index}-first-name`}
-                            value={dependent.first_name}
-                            onChange={(e) => updateDependent(index, 'first_name', e.target.value)}
-                            disabled={!isEditMode}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label htmlFor={`dependent-${index}-middle-name`} className="block text-sm font-medium text-gray-700 mb-1">
-                            Middle Name
-                          </label>
-                          <Input
-                            id={`dependent-${index}-middle-name`}
-                            value={dependent.middle_name || ''}
-                            onChange={(e) => updateDependent(index, 'middle_name', e.target.value)}
-                            disabled={!isEditMode}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label htmlFor={`dependent-${index}-last-name`} className="block text-sm font-medium text-gray-700 mb-1">
-                            Last Name
-                          </label>
-                          <Input
-                            id={`dependent-${index}-last-name`}
-                            value={dependent.last_name}
-                            onChange={(e) => updateDependent(index, 'last_name', e.target.value)}
-                            disabled={!isEditMode}
-                          />
-                        </div>
-                        
-                        
+            {/* Email Addresses */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg font-semibold">Email Addresses</CardTitle>
+                {isEditMode && (
+                  <Button 
+                    onClick={addEmailAddress}
+                    size="sm"
+                    className="bg-union-600 hover:bg-union-700 text-white"
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add Email
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {formData.emailAddresses.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No email addresses added</p>
+                ) : (
+                  formData.emailAddresses.map((email, index) => (
+                    <div key={email.id || `email-${index}`} className="flex items-center gap-4">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Gender
-                          </label>
-                          <Select 
-                            value={dependent.gender || 'not-specified'} 
-                            onValueChange={(value) => updateDependent(index, 'gender', value === 'not-specified' ? undefined : value)}
-                            disabled={!isEditMode}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select Gender" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="not-specified">Not Specified</SelectItem>
-                              <SelectItem value="MALE">Male</SelectItem>
-                              <SelectItem value="FEMALE">Female</SelectItem>
-                              <SelectItem value="OTHER">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Birth Date
-                          </label>
-                          <Input
-                            type="date"
-                            value={dependent.birth_date ? dependent.birth_date.split('T')[0] : ''}
-                            onChange={(e) => updateDependent(index, 'birth_date', e.target.value)}
-                            disabled={!isEditMode}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Relationship
-                          </label>
-                          <Select 
-                            value={dependent.dependent_type} 
-                            onValueChange={(value) => updateDependent(index, 'dependent_type', value)}
+                            Email Type
+                          </label>                          <Select 
+                            value={email.type} 
+                            onValueChange={(value) => updateEmailAddress(index, 'type', value)}
                             disabled={!isEditMode}
                           >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="SPOUSE">Spouse</SelectItem>
-                              <SelectItem value="CHILD">Child</SelectItem>
-                              <SelectItem value="DEPENDENT">Dependent</SelectItem>
+                              <SelectItem value="Personal">Personal</SelectItem>
+                              <SelectItem value="Work">Work</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
-                      </div>
-                      
-                      <div className="border-t pt-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Coverage Period</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Start Date
-                            </label>
-                            {isEditMode ? (
-                              <Input
-                                type="date"
-                                value={dependentCoverage.start_date ? dependentCoverage.start_date.split('T')[0] : ''}
-                                onChange={(e) => updateDependentCoverage(index, 'start_date', e.target.value)}
-                              />
-                            ) : (
-                              <p className="text-sm text-gray-600">
-                                {dependentCoverage.start_date ? new Date(dependentCoverage.start_date).toLocaleDateString() : 'N/A'}
-                              </p>
-                            )}
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              End Date
-                            </label>
-                            {isEditMode ? (
-                              <Input
-                                type="date"
-                                value={dependentCoverage.end_date ? dependentCoverage.end_date.split('T')[0] : ''}
-                                onChange={(e) => updateDependentCoverage(index, 'end_date', e.target.value || undefined)}
-                                placeholder="Leave empty for active coverage"
-                              />
-                            ) : (
-                              <p className="text-sm text-gray-600">
-                                {dependentCoverage.end_date ? new Date(dependentCoverage.end_date).toLocaleDateString() : ''}
-                              </p>
-                            )}
-                          </div>
+                        
+                        <div>
+                          <label htmlFor={`email-address-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
+                            Email Address
+                          </label>
+                          <Input
+                            id={`email-address-${index}`}
+                            type="email"
+                            value={email.email}
+                            onChange={(e) => updateEmailAddress(index, 'email', e.target.value)}
+                            disabled={!isEditMode}
+                            placeholder="email@example.com"
+                          />
                         </div>
                       </div>
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Employers Tab */}
-      {activeTab === 'employers' && (
-        <div className="grid gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Employers</CardTitle>
-              {isEditMode && (
-                <Button 
-                  onClick={addEmployer}
-                  size="sm"
-                  className="bg-union-600 hover:bg-union-700 text-white"
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Add Employer
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {formData.employer_coverages.length === 0 ? (
-                <p className="text-gray-500 text-sm">No employers found</p>
-              ) : (
-                formData.employer_coverages.map((employerCoverage, index) => {
-                  const employer = employerCoverage.employer;
-                  return (
-                    <div key={employerCoverage.id || index} className="border rounded-lg p-6 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {employer.name || 'Unnamed Employer'}
-                        </h3>
-                        {isEditMode && (
-                          <Button 
-                            onClick={() => removeEmployer(index)}
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
                       
-                      {/* All employer fields removed as requested */}
-                      
-                      <div className="border-t pt-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Employment Period</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Start Date
-                            </label>
-                            <p className="text-sm text-gray-600">
-                              {employerCoverage.start_date ? new Date(employerCoverage.start_date).toLocaleDateString() : 'N/A'}
-                            </p>
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              End Date
-                            </label>
-                            <p className="text-sm text-gray-600">
-                              {employerCoverage.end_date ? new Date(employerCoverage.end_date).toLocaleDateString() : ''}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                      {isEditMode && (
+                        <Button 
+                          onClick={() => removeEmailAddress(index)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-800 mt-6"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+                  ))
+                )}
+              </CardContent>
+            </Card>
 
+            {/* Distribution Class and Member Status Coverage Sections */}
+            <CoverageList 
+              title="Distribution Class Coverages" 
+              coverages={formData.distribution_class_coverages} 
+              type="distribution_class"
+            />
+            
+            <div id="member-status-coverages">
+              <CoverageList 
+                title="Member Status Coverages" 
+                coverages={formData.member_status_coverages} 
+                type="member_status"
+              />
+            </div>
+          </div>
+        )}
 
-      {/* Notes Tab */}
-      {activeTab === 'notes' && (
-        <div className="grid gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Notes</CardTitle>
-              {isEditMode && (
-                <Button 
-                  onClick={addNote}
-                  size="sm"
-                  className="bg-union-600 hover:bg-union-700 text-white"
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Add Note
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {formData.member_notes.length === 0 ? (
-                <p className="text-gray-500 text-sm">No notes found</p>
-              ) : (
-                formData.member_notes.map((note, index) => (
-                  <div key={note.id || index} className="border rounded-lg p-6 space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-sm font-medium text-gray-900">
-                            Note #{index + 1}
+        {/* Health Coverage Tab */}
+        {activeTab === 'health-coverage' && (
+          <div className="grid gap-6">
+            <CoverageList 
+              title="Insurance Plan Coverages" 
+              coverages={formData.insurance_plan_coverages} 
+              type="insurance_plan"
+            />
+          </div>
+        )}
+
+        {/* Life Insurance Tab */}
+        {activeTab === 'life-insurance' && (
+          <div className="grid gap-6">
+            <CoverageList 
+              title="Life Insurance Coverages" 
+              coverages={formData.life_insurance_coverages} 
+              type="life_insurance"
+              onEditBeneficiary={handleEditBeneficiary}
+            />
+          </div>
+        )}
+
+        {/* Dependents Tab */}
+        {activeTab === 'dependents' && (
+          <div className="grid gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg font-semibold">Dependents</CardTitle>
+                {isEditMode && (
+                  <Button 
+                    onClick={addDependent}
+                    size="sm"
+                    className="bg-union-600 hover:bg-union-700 text-white"
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add Dependent
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {formData.dependent_coverages.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No dependents found</p>
+                ) : (
+                  formData.dependent_coverages.map((dependentCoverage, index) => {
+                    const dependent = dependentCoverage.dependent;
+                    if (!dependent) return null;
+                    return (
+                      <div key={dependentCoverage.id || index} className="border rounded-lg p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-medium text-gray-900">
+                            {dependent.first_name} {dependent.middle_name} {dependent.last_name}
                           </h3>
-                          {note.created_at && (
-                            <span className="text-xs text-gray-500">
-                              {new Date(note.created_at).toLocaleString()}
-                            </span>
+                          {isEditMode && (
+                            <Button 
+                              onClick={() => removeDependent(index)}
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           )}
                         </div>
                         
-                        <div>
-                          <label htmlFor={`note-message-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
-                            Message
-                          </label>
-                          <Textarea
-                            id={`note-message-${index}`}
-                            value={note.message}
-                            onChange={(e) => updateNote(index, 'message', e.target.value)}
-                            disabled={!isEditMode}
-                            rows={4}
-                            className="resize-vertical"
-                          />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          <div>
+                            <label htmlFor={`dependent-${index}-first-name`} className="block text-sm font-medium text-gray-700 mb-1">
+                              First Name
+                            </label>
+                            <Input
+                              id={`dependent-${index}-first-name`}
+                              value={dependent.first_name}
+                              onChange={(e) => updateDependent(index, 'first_name', e.target.value)}
+                              disabled={!isEditMode}
+                            />
+                          </div>
+                          
+                          <div>
+                            <label htmlFor={`dependent-${index}-middle-name`} className="block text-sm font-medium text-gray-700 mb-1">
+                              Middle Name
+                            </label>
+                            <Input
+                              id={`dependent-${index}-middle-name`}
+                              value={dependent.middle_name || ''}
+                              onChange={(e) => updateDependent(index, 'middle_name', e.target.value)}
+                              disabled={!isEditMode}
+                            />
+                          </div>
+                          
+                          <div>
+                            <label htmlFor={`dependent-${index}-last-name`} className="block text-sm font-medium text-gray-700 mb-1">
+                              Last Name
+                            </label>
+                            <Input
+                              id={`dependent-${index}-last-name`}
+                              value={dependent.last_name}
+                              onChange={(e) => updateDependent(index, 'last_name', e.target.value)}
+                              disabled={!isEditMode}
+                            />
+                          </div>
+                          
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Gender
+                            </label>
+                            <Select 
+                              value={dependent.gender || 'not-specified'} 
+                              onValueChange={(value) => updateDependent(index, 'gender', value === 'not-specified' ? undefined : value)}
+                              disabled={!isEditMode}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Gender" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="not-specified">Not Specified</SelectItem>
+                                <SelectItem value="MALE">Male</SelectItem>
+                                <SelectItem value="FEMALE">Female</SelectItem>
+                                <SelectItem value="OTHER">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Birth Date
+                            </label>
+                            <Input
+                              type="date"
+                              value={dependent.birth_date ? dependent.birth_date.split('T')[0] : ''}
+                              onChange={(e) => updateDependent(index, 'birth_date', e.target.value)}
+                              disabled={!isEditMode}
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Relationship
+                            </label>
+                            <Select 
+                              value={dependent.dependent_type} 
+                              onValueChange={(value) => updateDependent(index, 'dependent_type', value)}
+                              disabled={!isEditMode}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="SPOUSE">Spouse</SelectItem>
+                                <SelectItem value="CHILD">Child</SelectItem>
+                                <SelectItem value="DEPENDENT">Dependent</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        
+                        <div className="border-t pt-4">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">Coverage Period</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Start Date
+                              </label>
+                              {isEditMode ? (
+                                <Input
+                                  type="date"
+                                  value={dependentCoverage.start_date ? dependentCoverage.start_date.split('T')[0] : ''}
+                                  onChange={(e) => updateDependentCoverage(index, 'start_date', e.target.value)}
+                                />
+                              ) : (
+                                <p className="text-sm text-gray-600">
+                                  {dependentCoverage.start_date ? new Date(dependentCoverage.start_date).toLocaleDateString() : 'N/A'}
+                                </p>
+                              )}
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                End Date
+                              </label>
+                              {isEditMode ? (
+                                <Input
+                                  type="date"
+                                  value={dependentCoverage.end_date ? dependentCoverage.end_date.split('T')[0] : ''}
+                                  onChange={(e) => updateDependentCoverage(index, 'end_date', e.target.value || undefined)}
+                                  placeholder="Leave empty for active coverage"
+                                />
+                              ) : (
+                                <p className="text-sm text-gray-600">
+                                  {dependentCoverage.end_date ? new Date(dependentCoverage.end_date).toLocaleDateString() : ''}
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      
-                      {isEditMode && (
-                        <Button 
-                          onClick={() => removeNote(index)}
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-600 hover:text-red-800 ml-4"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Employers Tab */}
+        {activeTab === 'employers' && (
+          <div className="grid gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg font-semibold">Employers</CardTitle>
+                {isEditMode && (
+                  <Button 
+                    onClick={addEmployer}
+                    size="sm"
+                    className="bg-union-600 hover:bg-union-700 text-white"
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add Employer
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {formData.employer_coverages.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No employers found</p>
+                ) : (
+                  formData.employer_coverages.map((employerCoverage, index) => {
+                    const employer = employerCoverage.employer;
+                    return (
+                      <div key={employerCoverage.id || index} className="border rounded-lg p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-medium text-gray-900">
+                            {employer.name || 'Unnamed Employer'}
+                          </h3>
+                          {isEditMode && (
+                            <Button 
+                              onClick={() => removeEmployer(index)}
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        
+                        {/* All employer fields removed as requested */}
+                        
+                        <div className="border-t pt-4">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">Employment Period</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Start Date
+                              </label>
+                              <p className="text-sm text-gray-600">
+                                {employerCoverage.start_date ? new Date(employerCoverage.start_date).toLocaleDateString() : 'N/A'}
+                              </p>
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                End Date
+                              </label>
+                              <p className="text-sm text-gray-600">
+                                {employerCoverage.end_date ? new Date(employerCoverage.end_date).toLocaleDateString() : ''}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+
+        {/* Notes Tab */}
+        {activeTab === 'notes' && (
+          <div className="grid gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg font-semibold">Notes</CardTitle>
+                {isEditMode && (
+                  <Button 
+                    onClick={addNote}
+                    size="sm"
+                    className="bg-union-600 hover:bg-union-700 text-white"
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add Note
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {formData.member_notes.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No notes found</p>
+                ) : (
+                  formData.member_notes.map((note, index) => (
+                    <div key={note.id || index} className="border rounded-lg p-6 space-y-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="text-sm font-medium text-gray-900">
+                              Note #{index + 1}
+                            </h3>
+                            {note.created_at && (
+                              <span className="text-xs text-gray-500">
+                                {new Date(note.created_at).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div>
+                            <label htmlFor={`note-message-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
+                              Message
+                            </label>
+                            <Textarea
+                              id={`note-message-${index}`}
+                              value={note.message}
+                              onChange={(e) => updateNote(index, 'message', e.target.value)}
+                              disabled={!isEditMode}
+                              rows={4}
+                              className="resize-vertical"
+                            />
+                          </div>
+                        </div>
+                        
+                        {isEditMode && (
+                          <Button 
+                            onClick={() => removeNote(index)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-800 ml-4"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Fund Ledger Tab */}
+        {activeTab === 'fund-ledger' && (
+          <div className="space-y-6">
+            {/* Fund Balance Cards */}
+            {formData.fund_balances && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg font-semibold text-green-700">Health Account</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-green-600">
+                      ${formData.fund_balances.health_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Last updated: {new Date(formData.fund_balances.last_updated).toLocaleString()}
+                    </p>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg font-semibold text-blue-700">Annuity Account</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-blue-600">
+                      ${formData.fund_balances.annuity_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Last updated: {new Date(formData.fund_balances.last_updated).toLocaleString()}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+            
+            {/* Filters and Controls */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Filter className="h-5 w-5" />
+                  Filters & Controls
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Items per page */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Show
+                    </label>
+                    <Select 
+                      value={ledgerItemsPerPage.toString()} 
+                      onValueChange={(value) => {
+                        setLedgerItemsPerPage(parseInt(value));
+                        handleFilterChange();
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Account Type Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Account Type
+                    </label>
+                    <Select 
+                      value={accountTypeFilter} 
+                      onValueChange={(value) => {
+                        setAccountTypeFilter(value);
+                        handleFilterChange();
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Accounts</SelectItem>
+                        <SelectItem value="health">Health</SelectItem>
+                        <SelectItem value="annuity">Annuity</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Entry Type Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Entry Type
+                    </label>
+                    <Select 
+                      value={entryTypeFilter} 
+                      onValueChange={(value) => {
+                        setEntryTypeFilter(value);
+                        handleFilterChange();
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        {(ledgerEntryTypes || []).map((type, index) => (
+                          <SelectItem key={type.value || `entry-type-${index}`} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Date Range Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Date Range
+                    </label>
+                    <Select 
+                      value={dateRangeFilter} 
+                      onValueChange={handleDateRangeChange}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Dates</SelectItem>
+                        <SelectItem value="this-month">This Month</SelectItem>
+                        <SelectItem value="last-month">Last Month</SelectItem>
+                        <SelectItem value="this-year">This Year</SelectItem>
+                        <SelectItem value="last-year">Last Year</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                {/* Custom Date Range */}
+                {dateRangeFilter === 'all' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Start Date
+                      </label>
+                      <Input
+                        type="date"
+                        value={startDateFilter}
+                        onChange={(e) => {
+                          setStartDateFilter(e.target.value);
+                          handleFilterChange();
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        End Date
+                      </label>
+                      <Input
+                        type="date"
+                        value={endDateFilter}
+                        onChange={(e) => {
+                          setEndDateFilter(e.target.value);
+                          handleFilterChange();
+                        }}
+                      />
                     </div>
                   </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+                )}
+              </CardContent>
+            </Card>
+            
+            {/* Ledger Entries Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">
+                  Ledger Entries ({ledgerLoading ? '...' : ledgerTotalEntries})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {ledgerError && (
+                  <div className="p-6 text-center text-red-600">
+                    <p>{ledgerError}</p>
+                    <Button 
+                      onClick={fetchLedgerEntries} 
+                      className="mt-4 bg-union-600 hover:bg-union-700 text-white"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                )}
+                
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12"></TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Transaction Type</TableHead>
+                        <TableHead className="text-right">Health</TableHead>
+                        <TableHead className="text-right">Annuity</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {ledgerLoading ? (
+                        // Loading skeleton rows
+                        Array.from({ length: 5 }, (_, i) => (
+                          <TableRow key={`loading-${i}`}>
+                            <TableCell><div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                            <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div></TableCell>
+                            <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div></TableCell>
+                            <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-16 ml-auto"></div></TableCell>
+                            <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-16 ml-auto"></div></TableCell>
+                          </TableRow>
+                        ))
+                      ) : ledgerEntries.length === 0 ? (
+                        // Empty state
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                            No ledger entries found.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        // Ledger entry rows
+                        (ledgerEntries || []).map((entry) => {
+                          const isExpanded = expandedEntries.has(entry.id);
+                          const isHealth = entry.account?.type === 'HEALTH';
+                          const isAnnuity = entry.account?.type === 'ANNUITY';
+                          
+                          return (
+                            <React.Fragment key={entry.id}>
+                              <TableRow className="cursor-pointer hover:bg-gray-50" onClick={() => toggleEntryExpansion(entry.id)}>
+                                <TableCell>
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                    {isExpanded ? (
+                                      <ChevronDown className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </TableCell>
+                                <TableCell>
+                                  {entry.posted_date ? new Date(entry.posted_date).toLocaleDateString() : 'N/A'}
+                                </TableCell>
+                                <TableCell>{getLedgerEntryTypeDisplayName(entry.type)}</TableCell>
+                                <TableCell className="text-right">
+                                  {isHealth ? (
+                                    <span className={entry.amount < 0 ? 'text-red-600' : 'text-green-600'}>
+                                      ${entry.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                  ) : ''}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {isAnnuity ? (
+                                    <span className={entry.amount < 0 ? 'text-red-600' : 'text-green-600'}>
+                                      ${entry.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                  ) : ''}
+                                </TableCell>
+                              </TableRow>
+                              
+                              {/* Expanded detail row */}
+                              {isExpanded && (
+                                <TableRow>
+                                  <TableCell colSpan={5} className="bg-gray-50 p-6">
+                                    <LedgerEntryExpandedDetails entry={entry as PolymorphicLedgerEntry} />
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Pagination */}
+            {!ledgerLoading && ledgerTotalEntries > 0 && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Showing {((ledgerCurrentPage - 1) * ledgerItemsPerPage) + 1} to {Math.min(ledgerCurrentPage * ledgerItemsPerPage, ledgerTotalEntries)} of {ledgerTotalEntries} entries
+                </p>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLedgerCurrentPage(ledgerCurrentPage - 1)}
+                    disabled={ledgerCurrentPage === 1 || ledgerLoading}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, Math.ceil(ledgerTotalEntries / ledgerItemsPerPage)) }, (_, i) => {
+                      const totalPages = Math.ceil(ledgerTotalEntries / ledgerItemsPerPage);
+                      let page;
+                      if (totalPages <= 5) {
+                        page = i + 1;
+                      } else {
+                        const start = Math.max(1, ledgerCurrentPage - 2);
+                        const end = Math.min(totalPages, start + 4);
+                        page = start + i;
+                        if (page > end) return null;
+                      }
+                      
+                      return (
+                        <Button
+                          key={page}
+                          variant={ledgerCurrentPage === page ? "default" : "outline"}
+                          size="sm"
+                          className={ledgerCurrentPage === page ? "bg-union-600 hover:bg-union-700" : ""}
+                          onClick={() => setLedgerCurrentPage(page)}
+                          disabled={ledgerLoading}
+                        >
+                          {page}
+                        </Button>
+                      );
+                    }).filter(Boolean)}
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLedgerCurrentPage(ledgerCurrentPage + 1)}
+                    disabled={ledgerCurrentPage >= Math.ceil(ledgerTotalEntries / ledgerItemsPerPage) || ledgerLoading}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-      {/* Fund Ledger Tab */}
-      {activeTab === 'fund-ledger' && (
-        <div className="space-y-6">
-          {/* Fund Balance Cards */}
-          {formData.fund_balances && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-green-700">Health Account</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-green-600">
-                    ${formData.fund_balances.health_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Last updated: {new Date(formData.fund_balances.last_updated).toLocaleString()}
-                  </p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-blue-700">Annuity Account</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-blue-600">
-                    ${formData.fund_balances.annuity_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Last updated: {new Date(formData.fund_balances.last_updated).toLocaleString()}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-          
-          {/* Filters and Controls */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <Filter className="h-5 w-5" />
-                Filters & Controls
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Items per page */}
+        {/* Claims/Adjustments Tab */}
+        {activeTab === 'claims-adjustments' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Claim Form */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Claim</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Show
+                    <span className="text-red-500">*</span> Claim Type:
                   </label>
                   <Select 
-                    value={ledgerItemsPerPage.toString()} 
-                    onValueChange={(value) => {
-                      setLedgerItemsPerPage(parseInt(value));
-                      handleFilterChange();
-                    }}
+                    value={claimForm.claim_type} 
+                    onValueChange={(value) => setClaimForm(prev => ({...prev, claim_type: value}))}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select claim type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* Account Type Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Account Type
-                  </label>
-                  <Select 
-                    value={accountTypeFilter} 
-                    onValueChange={(value) => {
-                      setAccountTypeFilter(value);
-                      handleFilterChange();
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Accounts</SelectItem>
-                      <SelectItem value="health">Health</SelectItem>
-                      <SelectItem value="annuity">Annuity</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* Entry Type Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Entry Type
-                  </label>
-                  <Select 
-                    value={entryTypeFilter} 
-                    onValueChange={(value) => {
-                      setEntryTypeFilter(value);
-                      handleFilterChange();
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      {(ledgerEntryTypes || []).map((type, index) => (
-                        <SelectItem key={type.value || `entry-type-${index}`} value={type.value}>
+                      {claimTypes.map((type, index) => (
+                        <SelectItem key={index} value={type.value}>
                           {type.label}
                         </SelectItem>
                       ))}
@@ -3240,481 +3710,228 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
                   </Select>
                 </div>
                 
-                {/* Date Range Filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Date Range
+                    Claim Description:
+                  </label>
+                  <Textarea
+                    value={claimForm.description}
+                    onChange={(e) => setClaimForm(prev => ({...prev, description: e.target.value}))}
+                    placeholder="Enter claim description"
+                    rows={3}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Check Number:
+                  </label>
+                  <Input
+                    value={claimForm.check_number}
+                    onChange={(e) => setClaimForm(prev => ({...prev, check_number: e.target.value}))}
+                    placeholder="Enter check number"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Check Date:
+                  </label>
+                  <Input
+                    type="date"
+                    value={claimForm.check_date}
+                    onChange={(e) => setClaimForm(prev => ({...prev, check_date: e.target.value}))}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <span className="text-red-500">*</span> Claim Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={claimForm.amount}
+                      onChange={(e) => setClaimForm(prev => ({...prev, amount: e.target.value}))}
+                      className="pl-8"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Posted Date:
+                  </label>
+                  <Input
+                    type="date"
+                    value={claimForm.posted_date}
+                    onChange={(e) => setClaimForm(prev => ({...prev, posted_date: e.target.value}))}
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="claim-overdraft"
+                    checked={claimForm.allow_overdraft}
+                    onCheckedChange={(checked) => setClaimForm(prev => ({...prev, allow_overdraft: !!checked}))}
+                  />
+                  <Label htmlFor="claim-overdraft" className="text-sm">
+                    Allow Overdraft?
+                  </Label>
+                </div>
+                
+                <Button 
+                  onClick={handleCreateClaim}
+                  disabled={creatingClaim || !claimForm.claim_type || !claimForm.amount}
+                  className="w-full bg-union-600 hover:bg-union-700 text-white"
+                >
+                  {creatingClaim ? 'Creating...' : 'Create Claim'}
+                </Button>
+              </CardContent>
+            </Card>
+            
+            {/* Manual Adjustment Form */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Manual Adjustment</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <span className="text-red-500">*</span> Account:
                   </label>
                   <Select 
-                    value={dateRangeFilter} 
-                    onValueChange={handleDateRangeChange}
+                    value={String(adjustmentForm.account_id)} 
+                    onValueChange={(value) => setAdjustmentForm(prev => ({...prev, account_id: value}))}
+                    disabled={!formData.fund_balances}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select account" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Dates</SelectItem>
-                      <SelectItem value="this-month">This Month</SelectItem>
-                      <SelectItem value="last-month">Last Month</SelectItem>
-                      <SelectItem value="this-year">This Year</SelectItem>
-                      <SelectItem value="last-year">Last Year</SelectItem>
+                      {formData.fund_balances ? (
+                        <>
+                          <SelectItem value={String(formData.fund_balances.health_account_id)}>Health Account</SelectItem>
+                          <SelectItem value={String(formData.fund_balances.annuity_account_id)}>Annuity Account</SelectItem>
+                        </>
+                      ) : (
+                        <SelectItem value="disabled" disabled>No accounts found for member</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-              
-              {/* Custom Date Range */}
-              {dateRangeFilter === 'all' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Start Date
-                    </label>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <span className="text-red-500">*</span> Adjustment Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
                     <Input
-                      type="date"
-                      value={startDateFilter}
-                      onChange={(e) => {
-                        setStartDateFilter(e.target.value);
-                        handleFilterChange();
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      End Date
-                    </label>
-                    <Input
-                      type="date"
-                      value={endDateFilter}
-                      onChange={(e) => {
-                        setEndDateFilter(e.target.value);
-                        handleFilterChange();
-                      }}
+                      type="number"
+                      step="0.01"
+                      value={adjustmentForm.amount}
+                      onChange={(e) => setAdjustmentForm(prev => ({...prev, amount: e.target.value}))}
+                      className="pl-8"
+                      placeholder="0.00"
                     />
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-          
-          {/* Ledger Entries Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">
-                Ledger Entries ({ledgerLoading ? '...' : ledgerTotalEntries})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {ledgerError && (
-                <div className="p-6 text-center text-red-600">
-                  <p>{ledgerError}</p>
-                  <Button 
-                    onClick={fetchLedgerEntries} 
-                    className="mt-4 bg-union-600 hover:bg-union-700 text-white"
-                  >
-                    Try Again
-                  </Button>
-                </div>
-              )}
-              
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12"></TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Transaction Type</TableHead>
-                      <TableHead className="text-right">Health</TableHead>
-                      <TableHead className="text-right">Annuity</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ledgerLoading ? (
-                      // Loading skeleton rows
-                      Array.from({ length: 5 }, (_, i) => (
-                        <TableRow key={`loading-${i}`}>
-                          <TableCell><div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div></TableCell>
-                          <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div></TableCell>
-                          <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div></TableCell>
-                          <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-16 ml-auto"></div></TableCell>
-                          <TableCell><div className="h-4 bg-gray-200 rounded animate-pulse w-16 ml-auto"></div></TableCell>
-                        </TableRow>
-                      ))
-                    ) : ledgerEntries.length === 0 ? (
-                      // Empty state
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                          No ledger entries found.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      // Ledger entry rows
-                      (ledgerEntries || []).map((entry) => {
-                        const isExpanded = expandedEntries.has(entry.id);
-                        const isHealth = entry.account?.type === 'HEALTH';
-                        const isAnnuity = entry.account?.type === 'ANNUITY';
-                        
-                        return (
-                          <React.Fragment key={entry.id}>
-                            <TableRow className="cursor-pointer hover:bg-gray-50" onClick={() => toggleEntryExpansion(entry.id)}>
-                              <TableCell>
-                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                  {isExpanded ? (
-                                    <ChevronDown className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </TableCell>
-                              <TableCell>
-                                {entry.posted_date ? new Date(entry.posted_date).toLocaleDateString() : 'N/A'}
-                              </TableCell>
-                              <TableCell>{getLedgerEntryTypeDisplayName(entry.type)}</TableCell>
-                              <TableCell className="text-right">
-                                {isHealth ? (
-                                  <span className={entry.amount < 0 ? 'text-red-600' : 'text-green-600'}>
-                                    ${entry.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </span>
-                                ) : ''}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {isAnnuity ? (
-                                  <span className={entry.amount < 0 ? 'text-red-600' : 'text-green-600'}>
-                                    ${entry.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </span>
-                                ) : ''}
-                              </TableCell>
-                            </TableRow>
-                            
-                            {/* Expanded detail row */}
-                            {isExpanded && (
-                              <TableRow>
-                                <TableCell colSpan={5} className="bg-gray-50 p-6">
-                                  <LedgerEntryExpandedDetails entry={entry as PolymorphicLedgerEntry} />
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </React.Fragment>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Pagination */}
-          {!ledgerLoading && ledgerTotalEntries > 0 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Showing {((ledgerCurrentPage - 1) * ledgerItemsPerPage) + 1} to {Math.min(ledgerCurrentPage * ledgerItemsPerPage, ledgerTotalEntries)} of {ledgerTotalEntries} entries
-              </p>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setLedgerCurrentPage(ledgerCurrentPage - 1)}
-                  disabled={ledgerCurrentPage === 1 || ledgerLoading}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
                 
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: Math.min(5, Math.ceil(ledgerTotalEntries / ledgerItemsPerPage)) }, (_, i) => {
-                    const totalPages = Math.ceil(ledgerTotalEntries / ledgerItemsPerPage);
-                    let page;
-                    if (totalPages <= 5) {
-                      page = i + 1;
-                    } else {
-                      const start = Math.max(1, ledgerCurrentPage - 2);
-                      const end = Math.min(totalPages, start + 4);
-                      page = start + i;
-                      if (page > end) return null;
-                    }
-                    
-                    return (
-                      <Button
-                        key={page}
-                        variant={ledgerCurrentPage === page ? "default" : "outline"}
-                        size="sm"
-                        className={ledgerCurrentPage === page ? "bg-union-600 hover:bg-union-700" : ""}
-                        onClick={() => setLedgerCurrentPage(page)}
-                        disabled={ledgerLoading}
-                      >
-                        {page}
-                      </Button>
-                    );
-                  }).filter(Boolean)}
-                </div>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setLedgerCurrentPage(ledgerCurrentPage + 1)}
-                  disabled={ledgerCurrentPage >= Math.ceil(ledgerTotalEntries / ledgerItemsPerPage) || ledgerLoading}
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Claims/Adjustments Tab */}
-      {activeTab === 'claims-adjustments' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Claim Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Claim</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <span className="text-red-500">*</span> Claim Type:
-                </label>
-                <Select 
-                  value={claimForm.claim_type} 
-                  onValueChange={(value) => setClaimForm(prev => ({...prev, claim_type: value}))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select claim type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {claimTypes.map((type, index) => (
-                      <SelectItem key={index} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Claim Description:
-                </label>
-                <Textarea
-                  value={claimForm.description}
-                  onChange={(e) => setClaimForm(prev => ({...prev, description: e.target.value}))}
-                  placeholder="Enter claim description"
-                  rows={3}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Check Number:
-                </label>
-                <Input
-                  value={claimForm.check_number}
-                  onChange={(e) => setClaimForm(prev => ({...prev, check_number: e.target.value}))}
-                  placeholder="Enter check number"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Check Date:
-                </label>
-                <Input
-                  type="date"
-                  value={claimForm.check_date}
-                  onChange={(e) => setClaimForm(prev => ({...prev, check_date: e.target.value}))}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <span className="text-red-500">*</span> Claim Amount
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={claimForm.amount}
-                    onChange={(e) => setClaimForm(prev => ({...prev, amount: e.target.value}))}
-                    className="pl-8"
-                    placeholder="0.00"
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Adjustment Description
+                  </label>
+                  <Textarea
+                    value={adjustmentForm.description}
+                    onChange={(e) => setAdjustmentForm(prev => ({...prev, description: e.target.value}))}
+                    placeholder="Enter adjustment description"
+                    rows={3}
                   />
                 </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Posted Date:
-                </label>
-                <Input
-                  type="date"
-                  value={claimForm.posted_date}
-                  onChange={(e) => setClaimForm(prev => ({...prev, posted_date: e.target.value}))}
-                />
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="claim-overdraft"
-                  checked={claimForm.allow_overdraft}
-                  onCheckedChange={(checked) => setClaimForm(prev => ({...prev, allow_overdraft: !!checked}))}
-                />
-                <Label htmlFor="claim-overdraft" className="text-sm">
-                  Allow Overdraft?
-                </Label>
-              </div>
-              
-              <Button 
-                onClick={handleCreateClaim}
-                disabled={creatingClaim || !claimForm.claim_type || !claimForm.amount}
-                className="w-full bg-union-600 hover:bg-union-700 text-white"
-              >
-                {creatingClaim ? 'Creating...' : 'Create Claim'}
-              </Button>
-            </CardContent>
-          </Card>
-          
-          {/* Manual Adjustment Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Manual Adjustment</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <span className="text-red-500">*</span> Account:
-                </label>
-                <Select 
-                  value={String(adjustmentForm.account_id)} 
-                  onValueChange={(value) => setAdjustmentForm(prev => ({...prev, account_id: value}))}
-                  disabled={!formData.fund_balances}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select account" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {formData.fund_balances ? (
-                      <>
-                        <SelectItem value={String(formData.fund_balances.health_account_id)}>Health Account</SelectItem>
-                        <SelectItem value={String(formData.fund_balances.annuity_account_id)}>Annuity Account</SelectItem>
-                      </>
-                    ) : (
-                      <SelectItem value="disabled" disabled>No accounts found for member</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <span className="text-red-500">*</span> Adjustment Amount
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Posted Date:
+                  </label>
                   <Input
-                    type="number"
-                    step="0.01"
-                    value={adjustmentForm.amount}
-                    onChange={(e) => setAdjustmentForm(prev => ({...prev, amount: e.target.value}))}
-                    className="pl-8"
-                    placeholder="0.00"
+                    type="date"
+                    value={adjustmentForm.posted_date}
+                    onChange={(e) => setAdjustmentForm(prev => ({...prev, posted_date: e.target.value}))}
                   />
                 </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Adjustment Description
-                </label>
-                <Textarea
-                  value={adjustmentForm.description}
-                  onChange={(e) => setAdjustmentForm(prev => ({...prev, description: e.target.value}))}
-                  placeholder="Enter adjustment description"
-                  rows={3}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Posted Date:
-                </label>
-                <Input
-                  type="date"
-                  value={adjustmentForm.posted_date}
-                  onChange={(e) => setAdjustmentForm(prev => ({...prev, posted_date: e.target.value}))}
-                />
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="adjustment-overdraft"
-                  checked={adjustmentForm.allow_overdraft}
-                  onCheckedChange={(checked) => setAdjustmentForm(prev => ({...prev, allow_overdraft: !!checked}))}
-                />
-                <Label htmlFor="adjustment-overdraft" className="text-sm">
-                  Allow Overdraft?
-                </Label>
-              </div>
-              
-              <Button 
-                onClick={handleCreateAdjustment}
-                disabled={creatingAdjustment || !adjustmentForm.account_id || !adjustmentForm.amount}
-                className="w-full bg-union-600 hover:bg-union-700 text-white"
-              >
-                {creatingAdjustment ? 'Creating...' : 'Create Manual Adjustment'}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-      
-      {/* Annuity Payout Tab */}
-      {activeTab === 'annuity-payout' && (
-        <div className="space-y-6">
-          {/* Member Fund Balance Summary */}
-          {formData.fund_balances && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-blue-700">Annuity Account Balance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-600">
-                  ${formData.fund_balances.annuity_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="adjustment-overdraft"
+                    checked={adjustmentForm.allow_overdraft}
+                    onCheckedChange={(checked) => setAdjustmentForm(prev => ({...prev, allow_overdraft: !!checked}))}
+                  />
+                  <Label htmlFor="adjustment-overdraft" className="text-sm">
+                    Allow Overdraft?
+                  </Label>
                 </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  Available for payout as of {new Date(formData.fund_balances.last_updated).toLocaleDateString()}
-                </p>
+                
+                <Button 
+                  onClick={handleCreateAdjustment}
+                  disabled={creatingAdjustment || !adjustmentForm.account_id || !adjustmentForm.amount}
+                  className="w-full bg-union-600 hover:bg-union-700 text-white"
+                >
+                  {creatingAdjustment ? 'Creating...' : 'Create Manual Adjustment'}
+                </Button>
               </CardContent>
             </Card>
-          )}
-          
-          <AnnuityPayoutForm 
-            onSubmit={(data) => {
-              console.log('Annuity payout form submitted:', data);
-              setSuccess('Annuity payout form has been successfully submitted!');
-              setTimeout(() => setSuccess(null), 3000);
-            }}
-          />
-        </div>
-      )}
-      
-      {/* Placeholder for other tabs */}
-      {activeTab !== 'member' && activeTab !== 'life-insurance' && activeTab !== 'dependents' && activeTab !== 'employers' && activeTab !== 'health-coverage' && activeTab !== 'notes' && activeTab !== 'fund-ledger' && activeTab !== 'claims-adjustments' && activeTab !== 'annuity-payout' && (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <div className="text-gray-500">
-              <div className="text-lg font-medium mb-2">
-                {TABS.find(tab => tab.id === activeTab)?.label}
+          </div>
+        )}
+        
+        {/* Annuity Payout Tab */}
+        {activeTab === 'annuity-payout' && (
+          <div className="space-y-6">
+            {/* Member Fund Balance Summary */}
+            {formData.fund_balances && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-blue-700">Annuity Account Balance</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-600">
+                    ${formData.fund_balances.annuity_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Available for payout as of {new Date(formData.fund_balances.last_updated).toLocaleDateString()}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            
+            <AnnuityPayoutForm 
+              onSubmit={(data) => {
+                console.log('Annuity payout form submitted:', data);
+                setSuccess('Annuity payout form has been successfully submitted!');
+                setTimeout(() => setSuccess(null), 3000);
+              }}
+            />
+          </div>
+        )}
+        
+        {/* Placeholder for other tabs */}
+        {activeTab !== 'member' && activeTab !== 'life-insurance' && activeTab !== 'dependents' && activeTab !== 'employers' && activeTab !== 'health-coverage' && activeTab !== 'notes' && activeTab !== 'fund-ledger' && activeTab !== 'claims-adjustments' && activeTab !== 'annuity-payout' && (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <div className="text-gray-500">
+                <div className="text-lg font-medium mb-2">
+                  {TABS.find(tab => tab.id === activeTab)?.label}
+                </div>
+                <p>This section is coming soon.</p>
               </div>
-              <p>This section is coming soon.</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </>
   );
 }
