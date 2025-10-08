@@ -6,23 +6,44 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Converts a date string (YYYY-MM-DD or ISO) to a full ISO 8601 datetime string (UTC midnight).
- * If already a datetime, returns as-is. If invalid, returns null.
+ * Normalizes a value representing a calendar date to an ISO 8601 string pinned to midnight UTC.
+ * Accepts plain date strings (YYYY-MM-DD), ISO strings, or Date instances. Returns null when parsing fails.
  */
-export function toISOStringWithMidnight(dateStr?: string): string | null {
-  if (!dateStr) return null;
-  // Already a full ISO datetime
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(dateStr)) {
-    return dateStr;
+export function toISOStringWithMidnight(dateInput?: string | Date | null): string | null {
+  if (!dateInput) {
+    return null;
   }
-  // YYYY-MM-DD only
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return new Date(dateStr + 'T00:00:00.000Z').toISOString();
+
+  if (dateInput instanceof Date) {
+    if (Number.isNaN(dateInput.getTime())) {
+      return null;
+    }
+
+    const midnightUtc = new Date(Date.UTC(
+      dateInput.getFullYear(),
+      dateInput.getMonth(),
+      dateInput.getDate(),
+    ));
+    return midnightUtc.toISOString();
   }
-  // Fallback: try to parse and convert
-  const datePart = dateStr.split('T')[0];
+
+  const trimmed = dateInput.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return new Date(trimmed + 'T00:00:00.000Z').toISOString();
+  }
+
+  const datePart = trimmed.split('T')[0];
   if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
     return new Date(datePart + 'T00:00:00.000Z').toISOString();
   }
+
   return null;
 }

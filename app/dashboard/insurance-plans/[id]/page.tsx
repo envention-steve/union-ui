@@ -8,24 +8,20 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { 
-  ArrowLeft, 
-  Edit, 
-  Save, 
-  X, 
+import {
+  ArrowLeft,
   Plus,
   Trash2,
-  Shield,
-  CircleDollarSign,
-  Building2,
   MapPin,
   Phone,
-  Mail
+  Mail,
+  CircleDollarSign,
 } from 'lucide-react';
 import { backendApiClient } from '@/lib/api-client';
+import { InsurancePlanDetailHeader, InsurancePlanDetailTabs } from '@/components/features/insurance-plans/insurance-plan-detail-layout';
+import { INSURANCE_PLAN_DETAIL_TABS } from '@/lib/insurance-plans/constants';
 import { InsurancePlan, InsurancePlanRateCoverage } from '@/types';
 
 interface Address {
@@ -64,11 +60,6 @@ interface InsurancePlanFormData extends InsurancePlan {
   insurance_plan_rates: InsurancePlanRateCoverage[];
 }
 
-const TABS = [
-  { id: 'insurance-plan', label: 'Insurance Plan', icon: Shield },
-  { id: 'premium-rates', label: 'Premium Rates', icon: CircleDollarSign },
-];
-
 const PLAN_TYPES = [
   { value: 'HEALTH', label: 'Health' },
   { value: 'DENTAL', label: 'Dental' },
@@ -83,7 +74,7 @@ export default function InsurancePlanDetailPage({ params }: { params: Promise<{ 
   const mode = searchParams.get('mode') || 'view';
   const isEditMode = mode === 'edit';
 
-  const [activeTab, setActiveTab] = useState('insurance-plan');
+  const [activeTab, setActiveTab] = useState<typeof INSURANCE_PLAN_DETAIL_TABS[number]['id']>('insurance-plan');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -232,11 +223,19 @@ export default function InsurancePlanDetailPage({ params }: { params: Promise<{ 
 
       // Process insurance plan rate coverages
       const processedRateCoverages = formData.insurance_plan_rates
-        .map(rate => {
+        .map((rate) => {
           const now = new Date().toISOString();
+          const rawRate = rate.rate;
+          const parsedRate =
+            typeof rawRate === 'number'
+              ? rawRate
+              : rawRate === null || rawRate === undefined || rawRate === ''
+                ? 0
+                : parseFloat(String(rawRate));
+
           const processedRate: any = {
             insurance_plan_id: parseInt(resolvedParams.id),
-            rate: parseFloat(rate.rate.toString()),
+            rate: parsedRate,
             start_date: formatDateForAPI(rate.start_date),
             end_date: rate.end_date ? formatDateForAPI(rate.end_date) : null,
             // Include created_at and updated_at - use existing values for existing rates, current time for new rates
@@ -360,6 +359,10 @@ export default function InsurancePlanDetailPage({ params }: { params: Promise<{ 
     } else {
       router.push('/dashboard/insurance-plans');
     }
+  };
+
+  const handleEnterEditMode = () => {
+    router.push(`/dashboard/insurance-plans/${resolvedParams.id}?mode=edit`);
   };
 
   const addAddress = () => {
@@ -540,71 +543,19 @@ export default function InsurancePlanDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            onClick={handleBackToList}
-            className="hover:bg-gray-100"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-union-900">
-              {isEditMode ? 'Edit Insurance Plan' : 'Insurance Plan Management'}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-gray-600">
-                {formData.name}
-              </span>
-              <Badge 
-                variant="outline" 
-                className={`text-xs ${getTypeColor(formData.type)}`}
-              >
-                {formData.type}
-              </Badge>
-              <Badge 
-                variant="outline" 
-                className="text-xs bg-blue-50 text-blue-700 border-blue-200"
-              >
-                Code: {formData.code}
-              </Badge>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex gap-2">
-          {isEditMode ? (
-            <>
-              <Button 
-                variant="outline" 
-                onClick={handleCancel}
-                disabled={saving}
-                className="text-gray-600 hover:text-gray-800"
-              >
-                <X className="mr-2 h-4 w-4" />
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={saving}
-                className="bg-union-600 hover:bg-union-700 text-white"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </>
-          ) : (
-            <Button 
-              onClick={() => router.push(`/dashboard/insurance-plans/${resolvedParams.id}?mode=edit`)}
-              className="bg-union-600 hover:bg-union-700 text-white"
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          )}
-        </div>
-      </div>
+      <InsurancePlanDetailHeader
+        isEditMode={isEditMode}
+        planName={formData.name}
+        planType={formData.type}
+        planCode={formData.code}
+        typeBadgeClass={getTypeColor(formData.type)}
+        onBack={handleBackToList}
+        onEdit={handleEnterEditMode}
+        onCancel={handleCancel}
+        onSave={handleSave}
+        saving={saving}
+        hasUnsavedChanges={hasUnsavedChanges}
+      />
 
       {/* Error Display */}
       {error && (
@@ -625,27 +576,11 @@ export default function InsurancePlanDetailPage({ params }: { params: Promise<{ 
       )}
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex space-x-8">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-union-600 text-union-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+      <InsurancePlanDetailTabs
+        tabs={INSURANCE_PLAN_DETAIL_TABS}
+        activeTab={activeTab}
+        onTabChange={(tabId) => setActiveTab(tabId)}
+      />
 
       {/* Tab Content */}
       {activeTab === 'insurance-plan' && (
@@ -1103,8 +1038,15 @@ export default function InsurancePlanDetailPage({ params }: { params: Promise<{ 
                             id={`rate-amount-${index}`}
                             type="number"
                             step="0.01"
-                            value={rate.rate}
-                            onChange={(e) => updateRateCoverage(index, 'rate', parseFloat(e.target.value))}
+                            value={typeof rate.rate === 'number' && Number.isFinite(rate.rate) ? rate.rate : ''}
+                            onChange={(e) => {
+                              const nextValue = e.target.value;
+                              updateRateCoverage(
+                                index,
+                                'rate',
+                                nextValue === '' ? '' : parseFloat(nextValue),
+                              );
+                            }}
                           />
                         ) : (
                           <p className="text-sm">${Number(rate.rate).toFixed(2)}</p>

@@ -32,6 +32,15 @@ jest.mock('@/lib/api-client', () => ({
     ledgerEntries: {
       getTypes: jest.fn(),
     },
+    claimTypes: {
+      list: jest.fn(),
+    },
+    claims: {
+      create: jest.fn(),
+    },
+    manualAdjustments: {
+      create: jest.fn(),
+    },
   },
 }));
 
@@ -328,19 +337,24 @@ beforeEach(() => {
   (backendApiClient.memberStatuses.list as jest.Mock).mockResolvedValue(mockMemberStatuses);
   (backendApiClient.insurancePlans.list as jest.Mock).mockResolvedValue(mockInsurancePlans);
   (backendApiClient.ledgerEntries.getTypes as jest.Mock).mockResolvedValue(mockLedgerEntryTypes);
+  (backendApiClient.claimTypes.list as jest.Mock).mockResolvedValue(['CLAIM', 'ADJUSTMENT']);
+  (backendApiClient.claims.create as jest.Mock).mockResolvedValue({});
+  (backendApiClient.manualAdjustments.create as jest.Mock).mockResolvedValue({});
 });
 
 describe('MemberDetailPage', () => {
   const mockParams = Promise.resolve({ id: '123' });
 
   describe('Loading State', () => {
-    it('should display loading skeleton while fetching member data', () => {
+    it('should display loading skeleton while fetching member data', async () => {
       // Make the API call pending so loading state persists
       (backendApiClient.members.getDetails as jest.Mock).mockImplementation(() => 
         new Promise(() => {}) // Never resolves
       );
       
-      render(<MemberDetailPage params={mockParams} />);
+      await act(async () => {
+        render(<MemberDetailPage params={mockParams} />);
+      });
       
       // Check for loading skeleton - use multiple possible selectors
       const loadingElement = screen.queryByTestId('loading') || 
@@ -796,12 +810,8 @@ describe('MemberDetailPage', () => {
 
       // Should display ledger entries
       await waitFor(() => {
-        const amount1000Elements = screen.getAllByText((content, element) => {
-          return element?.textContent?.includes('$1,000.00') || false;
-        });
-        const amount500Elements = screen.getAllByText((content, element) => {
-          return element?.textContent?.includes('$500.00') || false;
-        });
+        const amount1000Elements = screen.getAllByText(/\$1,000\.00/);
+        const amount500Elements = screen.getAllByText(/\$-?500\.00/);
         
         expect(amount1000Elements.length).toBeGreaterThan(0);
         expect(amount500Elements.length).toBeGreaterThan(0);
@@ -877,7 +887,9 @@ describe('MemberDetailPage', () => {
       await user.type(firstNameInput, 'Johnny');
 
       // Click save
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      await waitFor(() => expect(saveButton).not.toBeDisabled());
+      await user.click(saveButton);
 
       await waitFor(() => {
         expect(backendApiClient.members.update).toHaveBeenCalledWith('123', expect.any(Object));
@@ -900,7 +912,9 @@ describe('MemberDetailPage', () => {
       await user.clear(firstNameInput);
       await user.type(firstNameInput, 'Johnny');
 
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      await waitFor(() => expect(saveButton).not.toBeDisabled());
+      await user.click(saveButton);
 
       await waitFor(() => {
         expect(screen.getByText(/member data saved successfully/i)).toBeInTheDocument();
@@ -924,7 +938,11 @@ describe('MemberDetailPage', () => {
       await user.clear(firstNameInput);
       await user.type(firstNameInput, 'Johnny');
 
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      await waitFor(() => expect(saveButton).not.toBeDisabled());
+      await user.click(saveButton);
+
+      await waitFor(() => expect(backendApiClient.members.update).toHaveBeenCalled());
 
       await waitFor(() => {
         expect(screen.getByText(/failed to save member data/i)).toBeInTheDocument();
@@ -1088,19 +1106,7 @@ describe('MemberDetailPage', () => {
       // Switch to health coverage tab
       await user.click(screen.getByRole('button', { name: /health coverage/i }));
 
-      await waitFor(() => {
-        const healthPlanElements = screen.getAllByText((content, element) => {
-          return element?.textContent?.includes('Health Plus Plan') || false;
-        });
-        const policyElements = screen.getAllByText((content, element) => {
-          return element?.textContent?.includes('POL123456') || false;
-        });
-        
-        expect(healthPlanElements.length).toBeGreaterThan(0);
-        expect(policyElements.length).toBeGreaterThan(0);
-        expect(healthPlanElements[0]).toBeInTheDocument();
-        expect(policyElements[0]).toBeInTheDocument();
-      });
+      await screen.findByDisplayValue('POL123456');
     });
 
     it('should allow adding new coverage in edit mode', async () => {
@@ -1172,8 +1178,11 @@ describe('MemberDetailPage', () => {
 
       await user.click(screen.getByRole('button', { name: /add distribution class coverage/i }));
 
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      await waitFor(() => expect(saveButton).not.toBeDisabled());
+
       // Try to save without completing the coverage
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      await user.click(saveButton);
 
       await waitFor(() => {
         expect(screen.getByText(/please complete all distribution class coverage entries/i)).toBeInTheDocument();

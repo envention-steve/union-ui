@@ -10,7 +10,7 @@ jest.mock('jose', () => ({
     setExpirationTime: jest.fn().mockReturnThis(),
     sign: jest.fn().mockResolvedValue('mock.jwt.token'),
   })),
-  jwtVerify: jest.fn().mockImplementation((token, secret) => {
+  jwtVerify: jest.fn().mockImplementation((token, _secret) => {
     if (token === 'invalid-token') {
       throw new Error('Invalid token');
     }
@@ -49,13 +49,44 @@ jest.mock('next/headers', () => ({
 }));
 
 // Mock console methods
-const consoleSpy = {
-  warn: jest.spyOn(console, 'warn').mockImplementation(() => {}),
-};
-
 import { cookies } from 'next/headers';
 
 const mockCookies = cookies as jest.MockedFunction<typeof cookies>;
+
+type CookieRecord = { value: string } | undefined;
+
+type MockCookieStore = {
+  get: jest.Mock<CookieRecord, [string]>;
+};
+
+const createMockCookieStore = (value?: string): MockCookieStore => ({
+  get: jest.fn<CookieRecord, [string]>().mockReturnValue(
+    value !== undefined ? { value } : undefined,
+  ),
+});
+
+const resolveCookiesWith = (store: MockCookieStore) =>
+  mockCookies.mockResolvedValue(
+    store as unknown as ReturnType<typeof cookies>,
+  );
+
+type MockRequest = {
+  cookies: {
+    get: jest.Mock<CookieRecord, [string]>;
+  };
+} & Partial<NextRequest>;
+
+const createMockRequest = (value?: string): NextRequest => ({
+  cookies: {
+    get: jest.fn<CookieRecord, [string]>().mockReturnValue(
+      value !== undefined ? { value } : undefined,
+    ),
+  },
+} as unknown as NextRequest);
+
+const consoleSpy = {
+  warn: jest.spyOn(console, 'warn').mockImplementation(() => {}),
+};
 
 // Mock environment variables
 const originalEnv = process.env;
@@ -92,10 +123,8 @@ describe('Session Enhanced Tests', () => {
 
   describe('getServerSession', () => {
     it('should return null when no session cookie exists', async () => {
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue(undefined),
-      };
-      mockCookies.mockResolvedValue(mockCookieStore as any);
+      const mockCookieStore = createMockCookieStore();
+      resolveCookiesWith(mockCookieStore);
 
       const result = await getServerSession();
 
@@ -104,10 +133,8 @@ describe('Session Enhanced Tests', () => {
     });
 
     it('should return null when session cookie has no value', async () => {
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: '' }),
-      };
-      mockCookies.mockResolvedValue(mockCookieStore as any);
+      const mockCookieStore = createMockCookieStore('');
+      resolveCookiesWith(mockCookieStore);
 
       const result = await getServerSession();
 
@@ -116,10 +143,8 @@ describe('Session Enhanced Tests', () => {
 
     it('should return session data for valid session token', async () => {
       const sessionToken = await createSessionToken(mockSessionData);
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: sessionToken }),
-      };
-      mockCookies.mockResolvedValue(mockCookieStore as any);
+      const mockCookieStore = createMockCookieStore(sessionToken);
+      resolveCookiesWith(mockCookieStore);
 
       const result = await getServerSession();
 
@@ -127,10 +152,8 @@ describe('Session Enhanced Tests', () => {
     });
 
     it('should return null and log warning for invalid session token', async () => {
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: 'invalid-token' }),
-      };
-      mockCookies.mockResolvedValue(mockCookieStore as any);
+      const mockCookieStore = createMockCookieStore('invalid-token');
+      resolveCookiesWith(mockCookieStore);
 
       const result = await getServerSession();
 
@@ -144,10 +167,8 @@ describe('Session Enhanced Tests', () => {
     it('should use custom cookie name from environment', async () => {
       process.env.SESSION_COOKIE_NAME = 'custom-session';
       
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue(undefined),
-      };
-      mockCookies.mockResolvedValue(mockCookieStore as any);
+      const mockCookieStore = createMockCookieStore();
+      resolveCookiesWith(mockCookieStore);
 
       await getServerSession();
 
@@ -169,11 +190,7 @@ describe('Session Enhanced Tests', () => {
 
   describe('getSessionFromRequest', () => {
     it('should return null when no session cookie exists in request', async () => {
-      const mockRequest = {
-        cookies: {
-          get: jest.fn().mockReturnValue(undefined),
-        },
-      } as unknown as NextRequest;
+      const mockRequest = createMockRequest();
 
       const result = await getSessionFromRequest(mockRequest);
 
@@ -182,11 +199,7 @@ describe('Session Enhanced Tests', () => {
     });
 
     it('should return null when session cookie has no value', async () => {
-      const mockRequest = {
-        cookies: {
-          get: jest.fn().mockReturnValue({ value: '' }),
-        },
-      } as unknown as NextRequest;
+      const mockRequest = createMockRequest('');
 
       const result = await getSessionFromRequest(mockRequest);
 
@@ -195,11 +208,7 @@ describe('Session Enhanced Tests', () => {
 
     it('should return session data for valid session token', async () => {
       const sessionToken = await createSessionToken(mockSessionData);
-      const mockRequest = {
-        cookies: {
-          get: jest.fn().mockReturnValue({ value: sessionToken }),
-        },
-      } as unknown as NextRequest;
+      const mockRequest = createMockRequest(sessionToken);
 
       const result = await getSessionFromRequest(mockRequest);
 
@@ -207,11 +216,7 @@ describe('Session Enhanced Tests', () => {
     });
 
     it('should return null and log warning for invalid session token', async () => {
-      const mockRequest = {
-        cookies: {
-          get: jest.fn().mockReturnValue({ value: 'invalid-token' }),
-        },
-      } as unknown as NextRequest;
+      const mockRequest = createMockRequest('invalid-token');
 
       const result = await getSessionFromRequest(mockRequest);
 
@@ -225,11 +230,7 @@ describe('Session Enhanced Tests', () => {
     it('should use custom cookie name from environment', async () => {
       process.env.SESSION_COOKIE_NAME = 'custom-session';
       
-      const mockRequest = {
-        cookies: {
-          get: jest.fn().mockReturnValue(undefined),
-        },
-      } as unknown as NextRequest;
+      const mockRequest = createMockRequest();
 
       await getSessionFromRequest(mockRequest);
 
@@ -501,10 +502,8 @@ describe('Session Enhanced Tests', () => {
       const sessionToken = await createSessionToken(mockSessionData);
       
       // Mock cookies for getServerSession
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: sessionToken }),
-      };
-      mockCookies.mockResolvedValue(mockCookieStore as any);
+      const mockCookieStore = createMockCookieStore(sessionToken);
+      resolveCookiesWith(mockCookieStore);
 
       const serverSession = await getServerSession();
       
@@ -514,11 +513,7 @@ describe('Session Enhanced Tests', () => {
     it('should create, verify, and use session token in request context', async () => {
       const sessionToken = await createSessionToken(mockSessionData);
       
-      const mockRequest = {
-        cookies: {
-          get: jest.fn().mockReturnValue({ value: sessionToken }),
-        },
-      } as unknown as NextRequest;
+      const mockRequest = createMockRequest(sessionToken);
 
       const requestSession = await getSessionFromRequest(mockRequest);
       

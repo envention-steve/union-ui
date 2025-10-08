@@ -92,9 +92,10 @@ type AnnuityPayoutFormData = z.infer<typeof annuityPayoutSchema>;
 interface AnnuityPayoutFormProps {
   onSubmit?: (data: AnnuityPayoutFormData) => void;
   className?: string;
+  isSubmitting?: boolean;
 }
 
-export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProps) {
+export function AnnuityPayoutForm({ onSubmit, className, isSubmitting }: AnnuityPayoutFormProps) {
   const [federalTaxType, setFederalTaxType] = useState<'rate' | 'amount'>('rate');
 
   const form = useForm<AnnuityPayoutFormData>({
@@ -197,6 +198,7 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
                         <Checkbox
                           checked={field.value}
                           onCheckedChange={field.onChange}
+                          aria-label="Annuity Fee"
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">
@@ -222,6 +224,7 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
                               checked={federalTaxType === 'rate'}
                               onChange={() => handleFederalTaxTypeChange('rate')}
                               className="h-4 w-4"
+                              aria-label="Federal Tax Rate"
                             />
                             <span>Federal Tax Rate</span>
                           </FormLabel>
@@ -234,6 +237,7 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
                                 max="100"
                                 placeholder="0.00"
                                 disabled={federalTaxType !== 'rate'}
+                                aria-label="Federal Tax Rate"
                                 {...field}
                               />
                               <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
@@ -261,6 +265,7 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
                               checked={federalTaxType === 'amount'}
                               onChange={() => handleFederalTaxTypeChange('amount')}
                               className="h-4 w-4"
+                              aria-label="Federal Tax Amount"
                             />
                             <span>Federal Tax Amount</span>
                           </FormLabel>
@@ -276,6 +281,7 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
                                 placeholder="0.00"
                                 className="pl-8"
                                 disabled={federalTaxType !== 'amount'}
+                                aria-label="Federal Tax Amount"
                                 {...field}
                               />
                             </div>
@@ -345,14 +351,15 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
                             <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
                               $
                             </span>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="0.00"
-                              className="pl-8"
-                              {...field}
-                            />
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            className="pl-8"
+                            aria-label="Annuity Payout"
+                            {...field}
+                          />
                           </div>
                         </FormControl>
                         <FormMessage />
@@ -384,10 +391,11 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                         <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          aria-label="Allow Overdraft"
+                        />
                         </FormControl>
                         <div className="space-y-1 leading-none">
                           <FormLabel>Allow Overdraft?</FormLabel>
@@ -402,10 +410,11 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                         <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          aria-label="Use Member Info"
+                        />
                         </FormControl>
                         <div className="space-y-1 leading-none">
                           <FormLabel>Use Member Info?</FormLabel>
@@ -423,7 +432,7 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Recipient Type</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} aria-label="Recipient Type">
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select recipient type" />
@@ -449,8 +458,8 @@ export function AnnuityPayoutForm({ onSubmit, className }: AnnuityPayoutFormProp
                   <CompanyForm form={form} />
                 )}
 
-                <Button type="submit" className="w-full">
-              Submit
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? 'Submitting...' : 'Submit'}
                 </Button>
               </form>
             </Form>

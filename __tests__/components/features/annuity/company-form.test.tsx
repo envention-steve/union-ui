@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useForm } from 'react-hook-form';
@@ -24,10 +25,17 @@ function TestWrapper({ children, defaultValues = {} }: { children: React.ReactNo
     },
   });
 
+  const childrenWithForm = React.Children.map(children, (child) => {
+    if (React.isValidElement(child)) {
+      return React.cloneElement(child, { form: child.props.form ?? form });
+    }
+    return child;
+  });
+
   return (
     <Form {...form}>
       <form>
-        {children}
+        {childrenWithForm}
       </form>
     </Form>
   );
@@ -37,7 +45,8 @@ describe('CompanyForm', () => {
   it('renders all company form fields correctly', () => {
     render(
       <TestWrapper>
-        <CompanyForm form={useForm() as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CompanyForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -55,7 +64,8 @@ describe('CompanyForm', () => {
   it('has correct input types and placeholders', () => {
     render(
       <TestWrapper>
-        <CompanyForm form={useForm() as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CompanyForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -81,7 +91,8 @@ describe('CompanyForm', () => {
 
     render(
       <TestWrapper>
-        <CompanyForm form={useForm() as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CompanyForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -120,7 +131,8 @@ describe('CompanyForm', () => {
   it('displays the correct card title', () => {
     render(
       <TestWrapper>
-        <CompanyForm form={useForm() as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CompanyForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -130,7 +142,8 @@ describe('CompanyForm', () => {
   it('has proper form field layout', () => {
     render(
       <TestWrapper>
-        <CompanyForm form={useForm() as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CompanyForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -147,16 +160,10 @@ describe('CompanyForm', () => {
   });
 
   it('handles empty form submission gracefully', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <CompanyForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CompanyForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -168,16 +175,10 @@ describe('CompanyForm', () => {
   });
 
   it('maintains accessibility standards', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <CompanyForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CompanyForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -189,16 +190,10 @@ describe('CompanyForm', () => {
   });
 
   it('renders with default empty values', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper defaultValues={{ company: {} }}>
-        <CompanyForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CompanyForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -209,16 +204,10 @@ describe('CompanyForm', () => {
   });
 
   it('differs from PersonForm in company-specific fields', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <CompanyForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CompanyForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -232,16 +221,10 @@ describe('CompanyForm', () => {
   });
 
   it('validates business email format expectation', () => {
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
-
     render(
       <TestWrapper>
-        <CompanyForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CompanyForm form={undefined as any} />
       </TestWrapper>
     );
 
@@ -252,16 +235,11 @@ describe('CompanyForm', () => {
 
   it('handles long company names appropriately', async () => {
     const user = userEvent.setup();
-    const mockForm = {
-      control: {} as any,
-      watch: jest.fn(),
-      setValue: jest.fn(),
-      getValues: jest.fn(),
-    };
 
     render(
       <TestWrapper>
-        <CompanyForm form={mockForm as any} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CompanyForm form={undefined as any} />
       </TestWrapper>
     );
 

@@ -183,7 +183,9 @@ describe('Employer Detail Page', () => {
       const { backendApiClient } = require('../../lib/api-client');
       backendApiClient.employers.getDetails = jest.fn().mockReturnValue(apiPromise);
 
-      render(<EmployerDetailPage {...defaultProps} />);
+      await act(async () => {
+        render(<EmployerDetailPage {...defaultProps} />);
+      });
       
       // Should show loading state
       expect(document.body).toBeInTheDocument();
@@ -202,7 +204,9 @@ describe('Employer Detail Page', () => {
       backendApiClient.employers.getDetails = jest.fn().mockRejectedValue(new Error('getDetails failed'));
       backendApiClient.employers.get = jest.fn().mockResolvedValue(mockEmployerData);
 
-      render(<EmployerDetailPage {...defaultProps} />);
+      await act(async () => {
+        render(<EmployerDetailPage {...defaultProps} />);
+      });
       
       await waitFor(() => {
         expect(backendApiClient.employers.getDetails).toHaveBeenCalledWith('1');
@@ -370,7 +374,11 @@ describe('Employer Detail Page', () => {
       });
 
       const saveButton = screen.getByText('Save Changes');
-      
+
+      await waitFor(() => {
+        expect(saveButton).not.toBeDisabled();
+      });
+
       await act(async () => {
         fireEvent.click(saveButton);
       });
@@ -429,7 +437,11 @@ describe('Employer Detail Page', () => {
       });
 
       const saveButton = screen.getByText('Save Changes');
-      
+
+      await waitFor(() => {
+        expect(saveButton).not.toBeDisabled();
+      });
+
       await act(async () => {
         fireEvent.click(saveButton);
       });
@@ -637,6 +649,7 @@ describe('Employer Detail Page', () => {
       
       // Try to save with empty name
       const saveButton = screen.getByText('Save Changes');
+      await waitFor(() => expect(saveButton).not.toBeDisabled());
       await act(async () => {
         fireEvent.click(saveButton);
       });

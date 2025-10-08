@@ -1,6 +1,7 @@
 import { KeycloakClient } from '@/lib/keycloak'
 import { testUsers } from '../../utils/mocks/users'
-import { mockKeycloakTokenResponse, createMockToken } from '../../utils/mocks/tokens'
+import { mockKeycloakTokenResponse } from '../../utils/mocks/tokens'
+import { jwtVerify } from 'jose'
 
 // Mock the jose library for JWT verification
 jest.mock('jose', () => ({
@@ -9,12 +10,13 @@ jest.mock('jose', () => ({
 }))
 
 // Helper to create mock response
-const createMockResponse = (data: any, ok = true, status = 200) => ({
+const createMockResponse = <T>(data: T, ok = true, status = 200) => ({
   ok,
   status,
   statusText: ok ? 'OK' : 'Error',
   json: () => Promise.resolve(data),
-  text: () => Promise.resolve(typeof data === 'string' ? data : JSON.stringify(data)),
+  text: () =>
+    Promise.resolve(typeof data === 'string' ? data : JSON.stringify(data)),
 })
 
 // Setup global fetch mock
@@ -161,8 +163,6 @@ describe('KeycloakClient', () => {
   })
 
   describe('validateToken', () => {
-    const { jwtVerify } = require('jose')
-
     it('should successfully validate a valid token', async () => {
       const mockPayload = {
         sub: 'test-user-id',

@@ -1,16 +1,19 @@
-import { 
-  createSessionToken, 
-  verifySessionToken, 
-  createSessionCookie, 
+import {
+  createSessionToken,
+  verifySessionToken,
+  createSessionCookie,
   clearSessionCookie,
   keycloakUserToSessionUser,
   isSessionExpiringSoon,
   getServerSession,
   getSessionFromRequest,
-  getServerSessionAllowExpired
+  getServerSessionAllowExpired,
 } from '@/lib/session'
 import { mockSessionData } from '../../utils/test-utils'
 import { keycloakUserResponse } from '../../utils/mocks/users'
+import * as jose from 'jose'
+import { cookies } from 'next/headers'
+import type { NextRequest } from 'next/server'
 
 // Mock jose library
 jest.mock('jose', () => ({
@@ -31,6 +34,40 @@ jest.mock('next/headers', () => ({
   cookies: jest.fn(),
 }))
 
+const mockedJose = jest.mocked(jose, true)
+const mockedCookies = jest.mocked(cookies)
+
+type CookieRecord = { value: string } | undefined
+
+type MockCookieStore = {
+  get: jest.Mock<CookieRecord, [string]>
+}
+
+const createMockCookieStore = (value?: string): MockCookieStore => ({
+  get: jest.fn<CookieRecord, [string]>().mockReturnValue(
+    value !== undefined ? { value } : undefined,
+  ),
+})
+
+const resolveCookiesWith = (store: MockCookieStore) =>
+  mockedCookies.mockResolvedValue(
+    store as unknown as ReturnType<typeof cookies>,
+  )
+
+type MockRequest = {
+  cookies: {
+    get: jest.Mock<CookieRecord, [string]>
+  }
+} & Partial<NextRequest>
+
+const createMockRequest = (cookieValue?: string): NextRequest => ({
+  cookies: {
+    get: jest.fn<CookieRecord, [string]>().mockReturnValue(
+      cookieValue !== undefined ? { value: cookieValue } : undefined,
+    ),
+  },
+} as unknown as NextRequest)
+
 describe('Session Management', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -38,14 +75,12 @@ describe('Session Management', () => {
 
   describe('createSessionToken', () => {
     it('should create a JWT token with correct structure', async () => {
-      const { SignJWT } = require('jose')
-      
       const result = await createSessionToken(mockSessionData)
 
       expect(result).toBe('mock-jwt-token')
-      expect(SignJWT).toHaveBeenCalled()
-      
-      const signJWTInstance = SignJWT.mock.results[0].value
+      expect(mockedJose.SignJWT).toHaveBeenCalled()
+
+      const signJWTInstance = mockedJose.SignJWT.mock.results[0].value
       expect(signJWTInstance.setProtectedHeader).toHaveBeenCalledWith({ alg: 'HS256' })
       expect(signJWTInstance.setIssuedAt).toHaveBeenCalled()
       expect(signJWTInstance.setIssuer).toHaveBeenCalledWith('union-benefits-ui')
@@ -55,15 +90,13 @@ describe('Session Management', () => {
   })
 
   describe('verifySessionToken', () => {
-    const { jwtVerify } = require('jose')
-
     it('should successfully verify a valid token', async () => {
-      jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
+      mockedJose.jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
 
       const result = await verifySessionToken('valid-token')
 
       expect(result).toEqual(mockSessionData)
-      expect(jwtVerify).toHaveBeenCalledWith(
+      expect(mockedJose.jwtVerify).toHaveBeenCalledWith(
         'valid-token',
         expect.any(Object), // The secret is a Uint8Array
         {
@@ -74,7 +107,7 @@ describe('Session Management', () => {
     })
 
     it('should throw error for invalid token', async () => {
-      jwtVerify.mockRejectedValueOnce(new Error('Invalid signature'))
+      mockedJose.jwtVerify.mockRejectedValueOnce(new Error('Invalid signature'))
 
       await expect(
         verifySessionToken('invalid-token')
@@ -142,8 +175,8 @@ describe('Session Management', () => {
     it('should handle missing name by combining first and last name', () => {
       const keycloakUserWithoutName = {
         ...keycloakUserResponse,
-        name: undefined as any,
-      }
+        name: undefined,
+      } as typeof keycloakUserResponse
 
       const result = keycloakUserToSessionUser(keycloakUserWithoutName)
 
@@ -187,19 +220,14 @@ describe('Session Management', () => {
   })
 
   describe('getServerSession', () => {
-    const { cookies } = require('next/headers')
-    const { jwtVerify } = require('jose')
-
     beforeEach(() => {
       jest.clearAllMocks()
     })
 
     it('should return session data when valid cookie exists', async () => {
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: 'valid-session-token' })
-      }
-      cookies.mockResolvedValueOnce(mockCookieStore)
-      jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
+      const mockCookieStore = createMockCookieStore('valid-session-token')
+      resolveCookiesWith(mockCookieStore)
+      mockedJose.jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
 
       const result = await getServerSession()
 
@@ -208,10 +236,8 @@ describe('Session Management', () => {
     })
 
     it('should return null when no session cookie exists', async () => {
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue(undefined)
-      }
-      cookies.mockResolvedValueOnce(mockCookieStore)
+      const mockCookieStore = createMockCookieStore()
+      resolveCookiesWith(mockCookieStore)
 
       const result = await getServerSession()
 
@@ -219,10 +245,8 @@ describe('Session Management', () => {
     })
 
     it('should return null when session cookie has no value', async () => {
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: '' })
-      }
-      cookies.mockResolvedValueOnce(mockCookieStore)
+      const mockCookieStore = createMockCookieStore('')
+      resolveCookiesWith(mockCookieStore)
 
       const result = await getServerSession()
 
@@ -230,11 +254,9 @@ describe('Session Management', () => {
     })
 
     it('should return null and log warning when verification fails', async () => {
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: 'invalid-token' })
-      }
-      cookies.mockResolvedValueOnce(mockCookieStore)
-      jwtVerify.mockRejectedValueOnce(new Error('Verification failed'))
+      const mockCookieStore = createMockCookieStore('invalid-token')
+      resolveCookiesWith(mockCookieStore)
+      mockedJose.jwtVerify.mockRejectedValueOnce(new Error('Verification failed'))
 
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
 
@@ -250,11 +272,9 @@ describe('Session Management', () => {
       const originalCookieName = process.env.SESSION_COOKIE_NAME
       process.env.SESSION_COOKIE_NAME = 'custom-session'
 
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: 'valid-session-token' })
-      }
-      cookies.mockResolvedValueOnce(mockCookieStore)
-      jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
+      const mockCookieStore = createMockCookieStore('valid-session-token')
+      resolveCookiesWith(mockCookieStore)
+      mockedJose.jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
 
       await getServerSession()
 
@@ -265,61 +285,43 @@ describe('Session Management', () => {
   })
 
   describe('getSessionFromRequest', () => {
-    const { jwtVerify } = require('jose')
-
     beforeEach(() => {
       jest.clearAllMocks()
     })
 
     it('should return session data when valid cookie exists in request', async () => {
-      const mockRequest = {
-        cookies: {
-          get: jest.fn().mockReturnValue({ value: 'valid-session-token' })
-        }
-      }
-      jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
+      const mockRequest = createMockRequest('valid-session-token')
+      mockedJose.jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
 
-      const result = await getSessionFromRequest(mockRequest as any)
+      const result = await getSessionFromRequest(mockRequest)
 
       expect(result).toEqual(mockSessionData)
       expect(mockRequest.cookies.get).toHaveBeenCalledWith('union-session')
     })
 
     it('should return null when no session cookie exists in request', async () => {
-      const mockRequest = {
-        cookies: {
-          get: jest.fn().mockReturnValue(undefined)
-        }
-      }
+      const mockRequest = createMockRequest()
 
-      const result = await getSessionFromRequest(mockRequest as any)
+      const result = await getSessionFromRequest(mockRequest)
 
       expect(result).toBe(null)
     })
 
     it('should return null when session cookie has no value in request', async () => {
-      const mockRequest = {
-        cookies: {
-          get: jest.fn().mockReturnValue({ value: '' })
-        }
-      }
+      const mockRequest = createMockRequest('')
 
-      const result = await getSessionFromRequest(mockRequest as any)
+      const result = await getSessionFromRequest(mockRequest)
 
       expect(result).toBe(null)
     })
 
     it('should return null and log warning when verification fails', async () => {
-      const mockRequest = {
-        cookies: {
-          get: jest.fn().mockReturnValue({ value: 'invalid-token' })
-        }
-      }
-      jwtVerify.mockRejectedValueOnce(new Error('Verification failed'))
+      const mockRequest = createMockRequest('invalid-token')
+      mockedJose.jwtVerify.mockRejectedValueOnce(new Error('Verification failed'))
 
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
 
-      const result = await getSessionFromRequest(mockRequest as any)
+      const result = await getSessionFromRequest(mockRequest)
 
       expect(result).toBe(null)
       expect(consoleSpy).toHaveBeenCalledWith('Failed to get session from request:', expect.any(Error))
@@ -331,14 +333,10 @@ describe('Session Management', () => {
       const originalCookieName = process.env.SESSION_COOKIE_NAME
       process.env.SESSION_COOKIE_NAME = 'custom-session'
 
-      const mockRequest = {
-        cookies: {
-          get: jest.fn().mockReturnValue({ value: 'valid-session-token' })
-        }
-      }
-      jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
+      const mockRequest = createMockRequest('valid-session-token')
+      mockedJose.jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
 
-      await getSessionFromRequest(mockRequest as any)
+      await getSessionFromRequest(mockRequest)
 
       expect(mockRequest.cookies.get).toHaveBeenCalledWith('custom-session')
       
@@ -347,9 +345,6 @@ describe('Session Management', () => {
   })
 
   describe('getServerSessionAllowExpired', () => {
-    const { cookies } = require('next/headers')
-    const { jwtVerify, decodeJwt } = require('jose')
-
     beforeEach(() => {
       jest.clearAllMocks()
     })
@@ -360,22 +355,19 @@ describe('Session Management', () => {
         expiresAt: Math.floor(Date.now() / 1000) - 100 // Expired
       }
       
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: 'expired-but-valid-token' })
-      }
-      cookies.mockResolvedValueOnce(mockCookieStore)
-      
-      // Mock decodeJwt to return the exp claim
-      decodeJwt.mockReturnValueOnce({ exp: expiredSessionData.expiresAt })
-      
-      // Mock jwtVerify to succeed with backdated currentDate
-      jwtVerify.mockResolvedValueOnce({ payload: expiredSessionData })
+      const mockCookieStore = createMockCookieStore('expired-but-valid-token')
+      resolveCookiesWith(mockCookieStore)
+
+      mockedJose.decodeJwt.mockReturnValueOnce({
+        exp: expiredSessionData.expiresAt,
+      })
+      mockedJose.jwtVerify.mockResolvedValueOnce({ payload: expiredSessionData })
 
       const result = await getServerSessionAllowExpired()
 
       expect(result).toEqual(expiredSessionData)
-      expect(decodeJwt).toHaveBeenCalledWith('expired-but-valid-token')
-      expect(jwtVerify).toHaveBeenCalledWith(
+      expect(mockedJose.decodeJwt).toHaveBeenCalledWith('expired-but-valid-token')
+      expect(mockedJose.jwtVerify).toHaveBeenCalledWith(
         'expired-but-valid-token',
         expect.any(Object), // secret
         {
@@ -387,10 +379,8 @@ describe('Session Management', () => {
     })
 
     it('should return null when no session cookie exists', async () => {
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue(undefined)
-      }
-      cookies.mockResolvedValueOnce(mockCookieStore)
+      const mockCookieStore = createMockCookieStore()
+      resolveCookiesWith(mockCookieStore)
 
       const result = await getServerSessionAllowExpired()
 
@@ -398,10 +388,8 @@ describe('Session Management', () => {
     })
 
     it('should return null when session cookie has no value', async () => {
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: '' })
-      }
-      cookies.mockResolvedValueOnce(mockCookieStore)
+      const mockCookieStore = createMockCookieStore('')
+      resolveCookiesWith(mockCookieStore)
 
       const result = await getServerSessionAllowExpired()
 
@@ -409,13 +397,13 @@ describe('Session Management', () => {
     })
 
     it('should return null and log warning when verification fails', async () => {
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: 'invalid-token' })
-      }
-      cookies.mockResolvedValueOnce(mockCookieStore)
-      
-      decodeJwt.mockReturnValueOnce({ exp: Math.floor(Date.now() / 1000) })
-      jwtVerify.mockRejectedValueOnce(new Error('Verification failed'))
+      const mockCookieStore = createMockCookieStore('invalid-token')
+      resolveCookiesWith(mockCookieStore)
+
+      mockedJose.decodeJwt.mockReturnValueOnce({
+        exp: Math.floor(Date.now() / 1000),
+      })
+      mockedJose.jwtVerify.mockRejectedValueOnce(new Error('Verification failed'))
 
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
 
@@ -428,20 +416,16 @@ describe('Session Management', () => {
     })
 
     it('should handle missing exp claim gracefully', async () => {
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: 'token-without-exp' })
-      }
-      cookies.mockResolvedValueOnce(mockCookieStore)
-      
-      // Mock decodeJwt to return payload without exp
-      decodeJwt.mockReturnValueOnce({})
-      
-      jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
+      const mockCookieStore = createMockCookieStore('token-without-exp')
+      resolveCookiesWith(mockCookieStore)
+
+      mockedJose.decodeJwt.mockReturnValueOnce({})
+      mockedJose.jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
 
       const result = await getServerSessionAllowExpired()
 
       expect(result).toEqual(mockSessionData)
-      expect(jwtVerify).toHaveBeenCalledWith(
+      expect(mockedJose.jwtVerify).toHaveBeenCalledWith(
         'token-without-exp',
         expect.any(Object),
         {
@@ -456,13 +440,11 @@ describe('Session Management', () => {
       const originalCookieName = process.env.SESSION_COOKIE_NAME
       process.env.SESSION_COOKIE_NAME = 'custom-session'
 
-      const mockCookieStore = {
-        get: jest.fn().mockReturnValue({ value: 'expired-token' })
-      }
-      cookies.mockResolvedValueOnce(mockCookieStore)
-      
-      decodeJwt.mockReturnValueOnce({ exp: Math.floor(Date.now() / 1000) })
-      jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
+      const mockCookieStore = createMockCookieStore('expired-token')
+      resolveCookiesWith(mockCookieStore)
+
+      mockedJose.decodeJwt.mockReturnValueOnce({ exp: Math.floor(Date.now() / 1000) })
+      mockedJose.jwtVerify.mockResolvedValueOnce({ payload: mockSessionData })
 
       await getServerSessionAllowExpired()
 

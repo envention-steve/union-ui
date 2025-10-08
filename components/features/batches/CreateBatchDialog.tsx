@@ -33,11 +33,22 @@ import {
 import { backendApiClient } from "@/lib/api-client";
 import { AccountContributionBatchCreate } from "@/types";
 
+const START_DATE_MESSAGE = "Start date is required.";
+const END_DATE_MESSAGE = "End date is required.";
+
 const formSchema = z.object({
-  account_type: z.string({ required_error: "Account type is required." }),
-  contribution_type: z.string({ required_error: "Contribution type is required." }),
-  start_date: z.coerce.date({ required_error: "Start date is required." }),
-  end_date: z.coerce.date({ required_error: "End date is required." }),
+  account_type: z.string({ required_error: "Account type is required." }).min(1, "Account type is required."),
+  contribution_type: z
+    .string({ required_error: "Contribution type is required." })
+    .min(1, "Contribution type is required."),
+  start_date: z
+    .string({ required_error: START_DATE_MESSAGE })
+    .min(1, START_DATE_MESSAGE)
+    .regex(/^\d{4}-\d{2}-\d{2}$/, START_DATE_MESSAGE),
+  end_date: z
+    .string({ required_error: END_DATE_MESSAGE })
+    .min(1, END_DATE_MESSAGE)
+    .regex(/^\d{4}-\d{2}-\d{2}$/, END_DATE_MESSAGE),
 });
 
 interface CreateBatchDialogProps {
@@ -56,18 +67,26 @@ export function CreateBatchDialog({ isOpen, onOpenChange, contributionTypes }: C
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      account_type: undefined,
-      contribution_type: undefined,
-      start_date: undefined,
-      end_date: undefined,
-    }
+      account_type: '',
+      contribution_type: '',
+      start_date: '',
+      end_date: '',
+    },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    const startDateIso = toISOStringWithMidnight(values.start_date);
+    const endDateIso = toISOStringWithMidnight(values.end_date);
+
+    if (!startDateIso || !endDateIso) {
+      toast.error("Please provide valid start and end dates.");
+      return;
+    }
+
     const payload: AccountContributionBatchCreate = {
       ...values,
-      start_date: toISOStringWithMidnight(values.start_date),
-      end_date: toISOStringWithMidnight(values.end_date),
+      start_date: startDateIso,
+      end_date: endDateIso,
       received_date: new Date().toISOString(),
       posted: false,
       suspended: false,
@@ -112,7 +131,7 @@ export function CreateBatchDialog({ isOpen, onOpenChange, contributionTypes }: C
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Account Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select an account type" />
@@ -134,7 +153,7 @@ export function CreateBatchDialog({ isOpen, onOpenChange, contributionTypes }: C
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Contribution Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a contribution type" />
@@ -157,10 +176,10 @@ export function CreateBatchDialog({ isOpen, onOpenChange, contributionTypes }: C
                 <FormItem>
                   <FormLabel>Start Date</FormLabel>
                   <FormControl>
-                    <Input 
-                      type="date" 
+                    <Input
+                      type="date"
                       {...field}
-                      value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
+                      value={field.value}
                     />
                   </FormControl>
                   <FormMessage />
@@ -174,10 +193,10 @@ export function CreateBatchDialog({ isOpen, onOpenChange, contributionTypes }: C
                 <FormItem>
                   <FormLabel>End Date</FormLabel>
                   <FormControl>
-                    <Input 
-                      type="date" 
+                    <Input
+                      type="date"
                       {...field}
-                      value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
+                      value={field.value}
                     />
                   </FormControl>
                   <FormMessage />

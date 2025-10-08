@@ -2,7 +2,7 @@
  * Integration test for the Annuity Payout tab in the Member detail page
  */
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Mock the AnnuityPayoutForm component
@@ -84,7 +84,9 @@ describe('Member Detail Page - Annuity Payout Tab Integration', () => {
   });
 
   it('renders the annuity payout tab in the navigation', async () => {
-    render(<MemberDetailPage params={mockParams} />);
+    await act(async () => {
+      render(<MemberDetailPage params={mockParams} />);
+    });
 
     // Wait for the component to load
     await waitFor(() => {
@@ -97,7 +99,9 @@ describe('Member Detail Page - Annuity Payout Tab Integration', () => {
 
   it('displays annuity payout form when tab is clicked', async () => {
     const user = userEvent.setup();
-    render(<MemberDetailPage params={mockParams} />);
+    await act(async () => {
+      render(<MemberDetailPage params={mockParams} />);
+    });
 
     // Wait for the component to load
     await waitFor(() => {
@@ -118,7 +122,9 @@ describe('Member Detail Page - Annuity Payout Tab Integration', () => {
 
   it('displays annuity account balance when on annuity payout tab', async () => {
     const user = userEvent.setup();
-    render(<MemberDetailPage params={mockParams} />);
+    await act(async () => {
+      render(<MemberDetailPage params={mockParams} />);
+    });
 
     // Wait for the component to load
     await waitFor(() => {
@@ -139,7 +145,9 @@ describe('Member Detail Page - Annuity Payout Tab Integration', () => {
 
   it('handles form submission correctly', async () => {
     const user = userEvent.setup();
-    render(<MemberDetailPage params={mockParams} />);
+    await act(async () => {
+      render(<MemberDetailPage params={mockParams} />);
+    });
 
     // Wait for the component to load
     await waitFor(() => {

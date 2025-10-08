@@ -16,6 +16,45 @@ jest.mock('@/components/features/annuity/company-form', () => ({
   ),
 }));
 
+jest.mock('@/components/ui/checkbox', () => ({
+  Checkbox: ({ checked, onCheckedChange, ...rest }: any) => (
+    <input
+      type="checkbox"
+      data-testid="checkbox"
+      checked={!!checked}
+      onChange={(event) => onCheckedChange?.(event.target.checked)}
+      {...rest}
+    />
+  ),
+}));
+
+jest.mock('@/components/ui/select', () => {
+  const React = require('react');
+
+  const Select = ({ children, onValueChange, value, defaultValue, ...rest }: any) => (
+    <select
+      value={value ?? defaultValue ?? ''}
+      onChange={(event) => onValueChange?.(event.target.value)}
+      {...rest}
+    >
+      {children}
+    </select>
+  );
+
+  const SelectTrigger = ({ children }: any) => <>{children}</>;
+  const SelectValue = ({ placeholder }: any) => <option value="">{placeholder}</option>;
+  const SelectContent = ({ children }: any) => <>{children}</>;
+  const SelectItem = ({ children, value }: any) => <option value={value}>{children}</option>;
+
+  return {
+    Select,
+    SelectTrigger,
+    SelectValue,
+    SelectContent,
+    SelectItem,
+  };
+});
+
 jest.mock('@/components/features/annuity/payout-calculator', () => ({
   PayoutCalculator: ({ formData, federalTaxType }: { formData: any; federalTaxType: string }) => (
     <div data-testid="payout-calculator">
@@ -34,18 +73,20 @@ describe('AnnuityPayoutForm', () => {
   it('renders all form fields correctly', () => {
     render(<AnnuityPayoutForm onSubmit={mockOnSubmit} />);
 
-    // Check main fields
+    // Check main fields via accessible queries
     expect(screen.getByLabelText(/account number/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/annuity fee/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/federal tax rate/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/federal tax amount/i)).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /annuity fee/i })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /federal tax rate/i })).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: /federal tax rate/i })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /federal tax amount/i })).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: /federal tax amount/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/1099 code/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/check number/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/check date/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/annuity payout/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/posted date/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/allow overdraft/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/use member info/i)).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /allow overdraft/i })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /use member info/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/recipient type/i)).toBeInTheDocument();
   });
 
@@ -61,12 +102,8 @@ describe('AnnuityPayoutForm', () => {
     render(<AnnuityPayoutForm onSubmit={mockOnSubmit} />);
 
     // Find and click the recipient type dropdown
-    const recipientTypeSelect = screen.getByRole('combobox', { name: /recipient type/i });
-    await user.click(recipientTypeSelect);
-
-    // Select company option
-    const companyOption = screen.getByRole('option', { name: /company/i });
-    await user.click(companyOption);
+    const recipientTypeSelect = screen.getByLabelText(/recipient type/i);
+    await user.selectOptions(recipientTypeSelect, 'company');
 
     await waitFor(() => {
       expect(screen.getByTestId('company-form')).toBeInTheDocument();
@@ -80,9 +117,9 @@ describe('AnnuityPayoutForm', () => {
 
     const federalTaxRateRadio = screen.getByRole('radio', { name: /federal tax rate/i });
     const federalTaxAmountRadio = screen.getByRole('radio', { name: /federal tax amount/i });
-    
-    const federalTaxRateInput = screen.getByLabelText(/federal tax rate/i);
-    const federalTaxAmountInput = screen.getByLabelText(/federal tax amount/i);
+
+    const federalTaxRateInput = screen.getByRole('spinbutton', { name: /federal tax rate/i });
+    const federalTaxAmountInput = screen.getByRole('spinbutton', { name: /federal tax amount/i });
 
     // Initially, rate should be selected and amount disabled
     expect(federalTaxRateRadio).toBeChecked();
@@ -108,9 +145,8 @@ describe('AnnuityPayoutForm', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/account number is required/i)).toBeInTheDocument();
-      expect(screen.getByText(/check date is required/i)).toBeInTheDocument();
       expect(screen.getByText(/annuity payout is required/i)).toBeInTheDocument();
-      expect(screen.getByText(/posted date is required/i)).toBeInTheDocument();
+      expect(screen.getByText(/either federal tax rate or amount is required/i)).toBeInTheDocument();
     });
 
     expect(mockOnSubmit).not.toHaveBeenCalled();
@@ -122,7 +158,7 @@ describe('AnnuityPayoutForm', () => {
 
     // Fill required fields
     const accountNumberInput = screen.getByLabelText(/account number/i);
-    const federalTaxRateInput = screen.getByLabelText(/federal tax rate/i);
+    const federalTaxRateInput = screen.getByRole('spinbutton', { name: /federal tax rate/i });
     const annuityPayoutInput = screen.getByLabelText(/annuity payout/i);
 
     await user.type(accountNumberInput, '123456');
@@ -138,8 +174,8 @@ describe('AnnuityPayoutForm', () => {
           accountNumber: '123456',
           federalTaxRate: '10',
           annuityPayout: '1000',
-          checkDate: '2025-09-18',
-          postedDate: '2025-09-18',
+          checkDate: '2025-09-18T00:00:00.000Z',
+          postedDate: '2025-09-18T00:00:00.000Z',
           recipientType: 'person',
         })
       );
@@ -150,9 +186,9 @@ describe('AnnuityPayoutForm', () => {
     const user = userEvent.setup();
     render(<AnnuityPayoutForm onSubmit={mockOnSubmit} />);
 
-    const annuityFeeCheckbox = screen.getByLabelText(/annuity fee/i);
-    const allowOverdraftCheckbox = screen.getByLabelText(/allow overdraft/i);
-    const useMemberInfoCheckbox = screen.getByLabelText(/use member info/i);
+    const annuityFeeCheckbox = screen.getByRole('checkbox', { name: /annuity fee/i });
+    const allowOverdraftCheckbox = screen.getByRole('checkbox', { name: /allow overdraft/i });
+    const useMemberInfoCheckbox = screen.getByRole('checkbox', { name: /use member info/i });
 
     // Initially unchecked
     expect(annuityFeeCheckbox).not.toBeChecked();
@@ -199,8 +235,7 @@ describe('AnnuityPayoutForm', () => {
     const customClass = 'custom-test-class';
     render(<AnnuityPayoutForm onSubmit={mockOnSubmit} className={customClass} />);
     
-    const formContainer = screen.getByRole('main').querySelector('.custom-test-class') ||
-                         document.querySelector('.custom-test-class');
+    const formContainer = document.querySelector('.custom-test-class');
     expect(formContainer).toBeInTheDocument();
   });
 
@@ -208,7 +243,7 @@ describe('AnnuityPayoutForm', () => {
     const user = userEvent.setup();
     render(<AnnuityPayoutForm onSubmit={mockOnSubmit} />);
 
-    const federalTaxRateInput = screen.getByLabelText(/federal tax rate/i);
+    const federalTaxRateInput = screen.getByRole('spinbutton', { name: /federal tax rate/i });
     const annuityPayoutInput = screen.getByLabelText(/annuity payout/i);
 
     // Test negative values are handled
@@ -225,7 +260,7 @@ describe('AnnuityPayoutForm', () => {
 
     // Check form labels are properly associated
     const accountNumberInput = screen.getByLabelText(/account number/i);
-    const federalTaxRateInput = screen.getByLabelText(/federal tax rate/i);
+    const federalTaxRateInput = screen.getByRole('spinbutton', { name: /federal tax rate/i });
 
     expect(accountNumberInput).toHaveAttribute('placeholder', 'Enter account number');
     expect(federalTaxRateInput).toHaveAttribute('type', 'number');

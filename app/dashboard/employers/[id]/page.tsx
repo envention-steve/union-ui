@@ -12,25 +12,19 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { 
-  ArrowLeft, 
-  Edit, 
-  Save, 
-  X,
-  Building,
-  DollarSign,
-  ClipboardList,
-  Users,
-  Folder,
+import {
+  ArrowLeft,
   Plus,
   Trash2,
   ChevronLeft,
   ChevronRight,
   Filter,
   Eye,
-  ChevronDown
+  ChevronDown,
 } from 'lucide-react';
 import { backendApiClient } from '@/lib/api-client';
+import { EmployerDetailHeader, EmployerDetailTabs } from '@/components/features/employers/employer-detail-layout';
+import { EMPLOYER_DETAIL_TABS } from '@/lib/employers/constants';
 import { 
   Employer, 
   EmployerType, 
@@ -82,14 +76,6 @@ interface EmployerFormData {
   employer_notes: EmployerNote[];
 }
 
-const TABS = [
-  { id: 'employer', label: 'Employer', icon: Building },
-  { id: 'employer-rates', label: 'Employer Rates', icon: DollarSign },
-  { id: 'notes', label: 'Notes', icon: ClipboardList },
-  { id: 'members', label: 'Members', icon: Users },
-  { id: 'employee-ledger', label: 'Employee Ledger', icon: Folder },
-];
-
 export default function EmployerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
@@ -97,7 +83,7 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
   const mode = searchParams.get('mode') || 'view';
   const isEditMode = mode === 'edit';
 
-  const [activeTab, setActiveTab] = useState('employer');
+  const [activeTab, setActiveTab] = useState<typeof EMPLOYER_DETAIL_TABS[number]['id']>('employer');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -448,6 +434,10 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
     }
   };
 
+  const handleEnterEditMode = () => {
+    router.push(`/dashboard/employers/${resolvedParams.id}?mode=edit`);
+  };
+
   // Rate management functions
   const addRate = () => {
     if (!isEditMode) return;
@@ -645,60 +635,16 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            onClick={handleBackToList}
-            className="hover:bg-gray-100"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-union-900">
-              {isEditMode ? 'Edit Employer' : 'Employer Management'}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Building className="h-4 w-4 text-gray-500" />
-              <span className="text-gray-600">
-                {formData.name}
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex gap-2">
-          {isEditMode ? (
-            <>
-              <Button 
-                variant="outline" 
-                onClick={handleCancel}
-                disabled={saving}
-                className="text-gray-600 hover:text-gray-800"
-              >
-                <X className="mr-2 h-4 w-4" />
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={saving}
-                className="bg-union-600 hover:bg-union-700 text-white"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </>
-          ) : (
-            <Button 
-              onClick={() => router.push(`/dashboard/employers/${resolvedParams.id}?mode=edit`)}
-              className="bg-union-600 hover:bg-union-700 text-white"
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          )}
-        </div>
-      </div>
+      <EmployerDetailHeader
+        isEditMode={isEditMode}
+        employerName={formData.name}
+        onBack={handleBackToList}
+        onEdit={handleEnterEditMode}
+        onCancel={handleCancel}
+        onSave={handleSave}
+        saving={saving}
+        hasUnsavedChanges={hasUnsavedChanges}
+      />
 
       {/* Error Display */}
       {error && (
@@ -719,27 +665,11 @@ export default function EmployerDetailPage({ params }: { params: Promise<{ id: s
       )}
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex space-x-8">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-union-600 text-union-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+      <EmployerDetailTabs
+        tabs={EMPLOYER_DETAIL_TABS}
+        activeTab={activeTab}
+        onTabChange={(tabId) => setActiveTab(tabId)}
+      />
 
       {/* Tab Content */}
       {activeTab === 'employer' && (

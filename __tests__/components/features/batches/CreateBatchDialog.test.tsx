@@ -17,6 +17,7 @@ jest.mock('@/lib/api-client', () => ({
 jest.mock('sonner', () => ({
   toast: {
     promise: jest.fn(),
+    error: jest.fn(),
   },
 }));
 jest.mock('next/navigation', () => ({
@@ -94,8 +95,8 @@ describe('CreateBatchDialog', () => {
       expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
         account_type: 'HEALTH',
         contribution_type: 'SELF_PAY',
-        start_date: '2025-09-01',
-        end_date: '2025-09-30',
+        start_date: '2025-09-01T00:00:00.000Z',
+        end_date: '2025-09-30T00:00:00.000Z',
       }));
     });
 

@@ -376,12 +376,12 @@ describe('PayoutCalculator', () => {
       />
     );
 
-    // Should default to 0 for invalid inputs - assert each specific row
+    // Should default to $0.00 when inputs are invalid
     const payoutInvalidRow = screen.getByText('Payout Amount:').closest('div');
     if (payoutInvalidRow) {
-      expect(within(payoutInvalidRow).getByText('$NaN')).toBeInTheDocument();
+      expect(within(payoutInvalidRow).getByText('$0.00')).toBeInTheDocument();
     } else {
-      expect(screen.getByText('$NaN')).toBeInTheDocument();
+      expect(screen.getByText('$0.00')).toBeInTheDocument();
     }
     const taxInvalidRow = screen.getByText(/Federal Tax/).closest('div');
     if (taxInvalidRow) {

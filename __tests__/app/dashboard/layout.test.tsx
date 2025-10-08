@@ -12,11 +12,6 @@ jest.mock('@/components/layout/dashboard-header', () => ({
 jest.mock('@/components/layout/dashboard-sidebar', () => ({
   DashboardSidebar: () => <div data-testid="dashboard-sidebar">Dashboard Sidebar</div>
 }));
-jest.mock('@/components/ui/scroll-area', () => ({
-  ScrollArea: ({ children, className }: any) => (
-    <div data-testid="scroll-area" className={className}>{children}</div>
-  )
-}));
 
 const mockUseAuthStore = useAuthStore as jest.MockedFunction<typeof useAuthStore>;
 const mockUseRouter = useRouter as jest.Mock;
@@ -146,12 +141,11 @@ describe('DashboardLayout', () => {
       await waitFor(() => {
         expect(screen.getByTestId('dashboard-header')).toBeInTheDocument();
         expect(screen.getByTestId('dashboard-sidebar')).toBeInTheDocument();
-        expect(screen.getByTestId('scroll-area')).toBeInTheDocument();
         expect(screen.getByText('Test Content')).toBeInTheDocument();
       });
     });
 
-    it('should render children in ScrollArea with correct props', async () => {
+    it('should render children inside the main content area with expected spacing', async () => {
       await act(async () => {
         render(
           <DashboardLayout>
@@ -161,9 +155,10 @@ describe('DashboardLayout', () => {
       });
 
       await waitFor(() => {
-        const scrollArea = screen.getByTestId('scroll-area');
-        expect(scrollArea).toBeInTheDocument();
-        expect(scrollArea).toHaveClass('h-full', 'p-6');
+        const mainElement = screen.getByRole('main');
+        const contentWrapper = mainElement.querySelector('div.h-full.p-6');
+        expect(mainElement).toBeInTheDocument();
+        expect(contentWrapper).not.toBeNull();
         expect(screen.getByTestId('child-content')).toBeInTheDocument();
       });
     });

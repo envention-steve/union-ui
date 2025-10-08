@@ -261,10 +261,13 @@ describe('InsurancePlanDetailPage', () => {
         render(<InsurancePlanDetailPage params={mockParams} />);
       });
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /insurance plan/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /premium rates/i })).toBeInTheDocument();
-      });
+      const navs = await screen.findAllByRole('navigation');
+      const tabNav = navs.find((nav) => nav.textContent?.match(/Insurance Plan/i));
+      expect(tabNav).toBeDefined();
+
+      const navQueries = within(tabNav as HTMLElement);
+      expect(navQueries.getByRole('button', { name: /insurance plan/i })).toBeInTheDocument();
+      expect(navQueries.getByRole('button', { name: /premium rates/i })).toBeInTheDocument();
     });
 
     it('should switch to different tabs when clicked', async () => {
@@ -274,9 +277,7 @@ describe('InsurancePlanDetailPage', () => {
         render(<InsurancePlanDetailPage params={mockParams} />);
       });
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /premium rates/i })).toBeInTheDocument();
-      });
+      await screen.findByRole('button', { name: /premium rates/i });
 
       // Switch to premium rates tab
       await user.click(screen.getByRole('button', { name: /premium rates/i }));
@@ -513,7 +514,9 @@ describe('InsurancePlanDetailPage', () => {
       await user.type(newRateInput, '1000');
 
       // Save the changes
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      await waitFor(() => expect(saveButton).not.toBeDisabled());
+      await user.click(saveButton);
 
       // Verify the saved data includes required fields
       await waitFor(() => {
@@ -567,8 +570,9 @@ describe('InsurancePlanDetailPage', () => {
       await user.clear(nameInput);
       await user.type(nameInput, 'Premium Health Plan');
 
-      // Click save
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      await waitFor(() => expect(saveButton).not.toBeDisabled());
+      await user.click(saveButton);
 
       await waitFor(() => {
         expect(backendApiClient.insurancePlans.update).toHaveBeenCalledWith('1', expect.any(Object));
@@ -591,7 +595,9 @@ describe('InsurancePlanDetailPage', () => {
       await user.clear(nameInput);
       await user.type(nameInput, 'Premium Health Plan');
 
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      await waitFor(() => expect(saveButton).not.toBeDisabled());
+      await user.click(saveButton);
 
       await waitFor(() => {
         expect(screen.getByText(/insurance plan data saved successfully/i)).toBeInTheDocument();
@@ -615,7 +621,11 @@ describe('InsurancePlanDetailPage', () => {
       await user.clear(nameInput);
       await user.type(nameInput, 'Premium Health Plan');
 
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      await waitFor(() => expect(saveButton).not.toBeDisabled());
+      await user.click(saveButton);
+
+      await waitFor(() => expect(backendApiClient.insurancePlans.update).toHaveBeenCalled());
 
       await waitFor(() => {
         expect(screen.getByText(/failed to save insurance plan data/i)).toBeInTheDocument();
@@ -791,7 +801,9 @@ describe('InsurancePlanDetailPage', () => {
       await user.clear(codeInput);
 
       // Try to save
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      await waitFor(() => expect(saveButton).not.toBeDisabled());
+      await user.click(saveButton);
 
       // Should still call the API (validation might be server-side)
       await waitFor(() => {
