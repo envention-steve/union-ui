@@ -53,8 +53,7 @@ describe('LoginForm Component', () => {
     jest.clearAllMocks()
     
     // Reset window location
-    delete (window as any).location
-    window.location = { search: '' } as any
+    window.history.replaceState({}, '', '/')
     
     // Mock router
     mockUseRouter.mockReturnValue({
@@ -151,9 +150,8 @@ describe('LoginForm Business Logic', () => {
     
     loginLogic = new LoginFormLogic(mockLogin, mockRouter, mockSetError)
     
-    // Mock window.location.search using Object.defineProperty
-    delete (window as any).location
-    window.location = { search: '' } as any
+    // Reset window location search between logic tests
+    window.history.replaceState({}, '', '/')
   })
 
   describe('Successful Login Flow', () => {
@@ -178,7 +176,7 @@ describe('LoginForm Business Logic', () => {
     })
 
     it('should redirect to callback URL when provided', async () => {
-      window.location.search = '?callbackUrl=/admin/settings'
+      window.history.replaceState({}, '', '/?callbackUrl=/admin/settings')
       mockLogin.mockResolvedValueOnce(undefined)
       
       const result = await loginLogic.handleSubmit({
@@ -195,7 +193,7 @@ describe('LoginForm Business Logic', () => {
 
     it('should handle URL-encoded callback URLs', async () => {
       const callbackUrl = '/admin/users?tab=active'
-      window.location.search = `?callbackUrl=${encodeURIComponent(callbackUrl)}`
+      window.history.replaceState({}, '', `/?callbackUrl=${encodeURIComponent(callbackUrl)}`)
       mockLogin.mockResolvedValueOnce(undefined)
       
       const result = await loginLogic.handleSubmit({
@@ -286,7 +284,7 @@ describe('LoginForm Business Logic', () => {
 
     it('should handle special characters in callback URL', async () => {
       const callbackUrl = '/search?q=test user&sort=name'
-      window.location.search = `?callbackUrl=${encodeURIComponent(callbackUrl)}`
+      window.history.replaceState({}, '', `/?callbackUrl=${encodeURIComponent(callbackUrl)}`)
       mockLogin.mockResolvedValueOnce(undefined)
       
       const result = await loginLogic.handleSubmit({
@@ -299,7 +297,7 @@ describe('LoginForm Business Logic', () => {
     })
 
     it('should handle missing callbackUrl parameter gracefully', async () => {
-      window.location.search = '?otherParam=value'
+      window.history.replaceState({}, '', '/?otherParam=value')
       mockLogin.mockResolvedValueOnce(undefined)
       
       const result = await loginLogic.handleSubmit({

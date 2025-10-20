@@ -16,26 +16,6 @@ jest.mock('@/store/auth-store', () => ({
   useAuthStore: jest.fn(),
 }));
 
-// Mock window.location
-delete (window as any).location;
-window.location = {
-  search: '',
-} as any;
-
-// Mock URLSearchParams
-const mockURLSearchParams = jest.fn().mockImplementation((search) => ({
-  get: jest.fn().mockImplementation((key) => {
-    if (search === '?callbackUrl=/custom-page' && key === 'callbackUrl') {
-      return '/custom-page';
-    }
-    if (search === '' && key === 'callbackUrl') {
-      return null;
-    }
-    return null;
-  }),
-}));
-global.URLSearchParams = mockURLSearchParams as any;
-
 describe('LoginForm Component', () => {
   const mockPush = jest.fn();
   const mockLogin = jest.fn();
@@ -47,15 +27,13 @@ describe('LoginForm Component', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    window.history.replaceState({}, '', '/');
     
     (useRouter as jest.Mock).mockReturnValue({
       push: mockPush,
     });
     
     (useAuthStore as jest.Mock).mockReturnValue(defaultAuthStore);
-    
-    // Reset window.location.search
-    window.location.search = '';
   });
 
   describe('Rendering', () => {
@@ -202,7 +180,7 @@ describe('LoginForm Component', () => {
     it('redirects to dashboard on successful login without callback URL', async () => {
       const user = userEvent.setup();
       mockLogin.mockResolvedValueOnce(undefined);
-      window.location.search = '';
+      window.history.replaceState({}, '', '/');
       
       render(<LoginForm />);
       
@@ -222,7 +200,7 @@ describe('LoginForm Component', () => {
     it('redirects to callback URL on successful login when provided', async () => {
       const user = userEvent.setup();
       mockLogin.mockResolvedValueOnce(undefined);
-      window.location.search = '?callbackUrl=/custom-page';
+      window.history.replaceState({}, '', '/?callbackUrl=/custom-page');
       
       render(<LoginForm />);
       
